@@ -8,18 +8,18 @@ injector:
   leaderElector:
     enabled: true
   image:
-    registry: ghcr.io
-    repository: cnie-es/openbao/vault-k8s
+    registry: docker.io
+    repository: hashicorp/vault-k8s
     tag: "1.7.2"
   agentImage:
-    registry: ghcr.io
-    repository: cnie-es/openbao
+    registry: docker.io
+    repository: openbao/openbao
     tag: "2.4.3"
 
 server:
   image:
-    registry: ghcr.io
-    repository: cnie-es/openbao/openbao
+    registry: docker.io
+    repository: openbao/openbao
     tag: "2.5.1"
   initContainers:
     - name: final-step

@@ -94,3 +94,57 @@ los clientes cada vez que un render se quede sin acceso al cluster.
 sin-lookup
 {{- end -}}
 {{- end -}}
+
+{{/*
+Secret TLS del ingress de OpenBao (secrets-<common>.<dominio interno>).
+  - tls.perHost: true   -> secrets-<common>-tls, que emite cert-manager con cluster.issuer.
+  - si no               -> tls.secretName o, en su defecto, el wildcard "wildcard-tls" de siempre.
+*/}}
+{{- define "connector.openbaoTlsSecret" -}}
+{{- if (.Values.tls).perHost -}}
+{{- printf "secrets-%s-tls" .Values.namespaceTag.common -}}
+{{- else -}}
+{{- (.Values.tls).secretName | default "wildcard-tls" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Values para que un servicio Java confie en una CA privada (caTrust.enabled), p. ej. la
+CNIE Internal CA que firma los *.cnie.internal de una authority on-prem.
+
+Los charts de tier1-gateway, tier2-gateway y authentication-provider-be no tienen soporte
+propio, pero si aceptan volumes, volumeMounts y envFrom. Se monta el Secret java-truststore
+(lo genera templates/ca-truststore.yaml: cacerts del JVM + caTrust.caBundle) y se apunta el
+JVM con JAVA_TOOL_OPTIONS. Las listas sustituyen a las del chart, asi que se repiten sus
+entradas por defecto (los ConfigMaps de configuracion de cada uno).
+*/}}
+{{- define "connector.javaTrustValues" -}}
+{{- if .root.Values.caTrust.enabled -}}
+{{- $defaults := dict
+  "tier1-gateway" (dict "cm" "tier1-gateway-spring-configmap" "env" "tier1-gateway-env-configmap")
+  "tier2-gateway" (dict "cm" "tier2-gateway-spring-configmap" "env" "tier2-gateway-env-configmap")
+  "authentication-provider-be" (dict "cm" "authentication-provider-be-configmap" "env" "")
+-}}
+{{- $d := index $defaults .chart -}}
+volumes:
+  - name: spring-config
+    configMap:
+      name: {{ $d.cm }}
+  - name: java-truststore
+    secret:
+      secretName: java-truststore
+volumeMounts:
+  - name: spring-config
+    mountPath: /config/
+  - name: java-truststore
+    mountPath: /truststore
+    readOnly: true
+envFrom:
+  {{- with $d.env }}
+  - configMapRef:
+      name: {{ . }}
+  {{- end }}
+  - configMapRef:
+      name: java-truststore-env
+{{- end -}}
+{{- end -}}

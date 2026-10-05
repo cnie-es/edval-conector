@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-env-configmap
+data:
+  {{- if eq .Values.profile "authority" }}
+  SAP_URL: {{ tpl .Values.microservices.securityAttributesProviderUrl . | quote }}
+  IDENTITY_PROVIDER_URL: {{ tpl .Values.microservices.identityProviderUrl . | quote }}
+  {{- end }}
+
+  {{- if or (eq .Values.profile "participant") (eq .Values.profile "data-provider") }}
+  CLIENT_AUTHORITY_AUTH_PROVIDER_URL: {{ tpl .Values.authorityAuthProviderUrl . | quote }}
+  {{- end }}
+
+  AUTHENTICATION_PROVIDER_URL: {{ tpl .Values.microservices.authenticationProviderUrl . | quote }}
+  USERS_ROLES_URL: {{ tpl .Values.microservices.usersRolesUrl . | quote }}
+
+  SPRING_PROFILES_ACTIVE: {{ .Values.profile | quote }}
+  SPRING_CONFIG_IMPORT: {{ tpl .Values.extraConfigImport . | quote }}
+
+  SPRING_DATA_REDIS_HOST: {{ tpl .Values.redis.host . | quote }}
+  SPRING_DATA_REDIS_PORT: {{ .Values.redis.port | quote }}
+  SPRING_DATA_REDIS_USERNAME: {{ .Values.redis.username | quote }}
+  SPRING_DATA_REDIS_PASSWORD: {{ .Values.redis.password | quote }}
+
+  KEYPAIR_ALGORITHM: {{ .Values.keypair.algorithm | quote }}
+
+  {{- if .Values.devMode  }}
+  LOGGING_CONFIG: classpath:log4j2-local.xml
+  {{- end }}

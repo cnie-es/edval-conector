@@ -1,0 +1,17 @@
+{{- if .Values.managementService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}-management
+  labels:
+    {{- include "microservices.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.managementService.type }}
+  ports:
+    - port: {{ .Values.managementService.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "microservices.selectorLabels" . | nindent 4 }}
+{{- end }}

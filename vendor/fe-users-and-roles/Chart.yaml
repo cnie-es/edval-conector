@@ -1,0 +1,6 @@
+apiVersion: v2
+appVersion: 2.11.0
+description: Simpl frontend application users-roles
+name: fe-users-and-roles
+type: application
+version: 2.11.0

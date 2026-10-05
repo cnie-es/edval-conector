@@ -1,0 +1,48 @@
+{{- if and .Values.simpl_edc.enabled .Values.edcPublicIngress.enabled }}
+{{- /*
+Endpoint publico del data plane del EDC (public-be-<ns>), por el que la contraparte descarga
+los datos en las transferencias de tipo pull (HttpData-PULL / EDR).
+
+Va aqui y no en el chart del EDC porque cnie-es/simpl-edc no trae Ingress publico: solo
+ingress.yaml, con clase nginx, y desactivado en app-values/simpl-edc. Los values
+ingress.publicEndpoint que se le pasan a ese chart no los lee nadie.
+
+Apunta al puerto publico del Service <simpl_edc.nameOverride>-service (19291 con
+values-hybrid.yaml). La URL que el EDC anuncia (edc.dataplane.api.public.baseurl) no la fija
+este chart: el de cnie-es ignora extraEnvVars, asi que se siembra en OpenBao, en
+simpl-secrets/<ns>-simpl-edc (clave edc_dataplane_api_public_baseurl), que el config.txt del
+pod exporta entero.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Values.simpl_edc.nameOverride }}-public-ingress
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    {{- if not .Values.wildcardTlsSecretName }}
+    cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+    {{- end }}
+    k8s.apisix.apache.org/enable-cors: "true"
+    k8s.apisix.apache.org/cors-allow-origin: "*"
+    k8s.apisix.apache.org/cors-allow-methods: "GET, POST, OPTIONS, PUT, DELETE"
+    k8s.apisix.apache.org/cors-allow-headers: "Authorization, DNT, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Range"
+    k8s.apisix.apache.org/cors-allow-credentials: "true"
+    k8s.apisix.apache.org/cors-max-age: "86400"
+spec:
+  ingressClassName: {{ .Values.edcPublicIngress.className }}
+  rules:
+    - host: public-be-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
+      http:
+        paths:
+          - path: /public
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.simpl_edc.nameOverride }}-service
+                port:
+                  number: {{ .Values.edcPublicIngress.servicePort }}
+  tls:
+    - hosts:
+        - public-be-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
+      secretName: {{ .Values.wildcardTlsSecretName | default (printf "public-be-%s-tls" .Values.namespaceTag.dataprovider) }}
+{{- end }}

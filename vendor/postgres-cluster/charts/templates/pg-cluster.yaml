@@ -71,6 +71,14 @@ spec:
     {{ $db }}_contract:
     - superuser
     - createdb
+    # contract-consumer: 2a instancia de Contract Manager BE (modo CONSUMER) para el
+    # agente hibrido. Anadida 2026-10-02: application.yaml/openbao-seeder ya la conocian,
+    # este chart no -- el usuario/base nunca se creaba y el vault-agent-init de
+    # contract-consumer se quedaba esperando para siempre un secreto que el seeder jamas
+    # podia sembrar (sin usuario de postgres que sembrar).
+    {{ $db }}_contract_consumer:
+    - superuser
+    - createdb
     {{- end }}
     {{- range .Values.providerList }}
     {{- $db := . | replace "-" "_" }}
@@ -87,6 +95,14 @@ spec:
     - superuser
     - createdb
     {{ $db }}_contract:
+    - superuser
+    - createdb
+    # contract-consumer: 2a instancia de Contract Manager BE (modo CONSUMER) para el
+    # agente hibrido. Anadida 2026-10-02: application.yaml/openbao-seeder ya la conocian,
+    # este chart no -- el usuario/base nunca se creaba y el vault-agent-init de
+    # contract-consumer se quedaba esperando para siempre un secreto que el seeder jamas
+    # podia sembrar (sin usuario de postgres que sembrar).
+    {{ $db }}_contract_consumer:
     - superuser
     - createdb
     {{ $db }}_infrabe:
@@ -119,6 +135,7 @@ spec:
     {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
     {{ $db }}_edc: {{ $db }}_edc
     {{ $db }}_contract: {{ $db }}_contract
+    {{ $db }}_contract_consumer: {{ $db }}_contract_consumer
     {{- end }}
     {{- range .Values.providerList }}
     {{- $db := . | replace "-" "_" }}
@@ -127,6 +144,7 @@ spec:
     {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
     {{ $db }}_edc: {{ $db }}_edc
     {{ $db }}_contract: {{ $db }}_contract
+    {{ $db }}_contract_consumer: {{ $db }}_contract_consumer
     {{ $db }}_infrabe: {{ $db }}_infrabe
     {{ $db }}_dagster: {{ $db }}_dagster
     {{- end }}

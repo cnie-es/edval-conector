@@ -55,10 +55,13 @@ spec:
     targetRevision: {{ .Values.vault_webhook.targetRevision }}
     path: {{ .Values.vault_webhook.path }}
     helm:
+      {{- /* Sin valueFiles no se emite la clave: vacia queda en null y la API rechaza la Application. */}}
+      {{- with .Values.vault_webhook.valueFiles }}
       valueFiles:
-        {{- range .Values.vault_webhook.valueFiles }}
+        {{- range . }}
         - $values/app-values/vault-webhook/{{ . }}
         {{- end }}
+      {{- end }}
       values: |
         watchNamespace: {{ .Values.cluster.namespace }}
         fullnameOverride: vault-webhook-{{ .Values.cluster.namespace }}
@@ -84,14 +87,34 @@ spec:
         certificate:
           generate: false
           useCertManager: true
+        image:
+          # El Chart.yaml del webhook dice appVersion: latest; sin fijarlo la imagen va a :latest.
+          tag: {{ .Values.vault_webhook.webhookImageTag | quote }}
         vaultEnv:
           repository: "ghcr.io/bank-vaults/vault-env"
-          tag: "1.22.1"
+          # Con "v": a secas "1.22.1" no existe en ghcr.io/bank-vaults/vault-env (confirmado,
+          # NotFound/ImagePullBackOff). Es el default que usa cualquier componente que NO fije
+          # su propia anotacion vault.security.banzaicloud.io/vault-env-image (la mayoria de los
+          # nuestros si la fijan con "v"; los componentes EDVAL externos, como
+          # edc-connector-adapter, no la traen y caen en este default). Visto en vivo en
+          # extletest/eks-external-rioja.
+          tag: "v1.22.1"
         env:
           VAULT_ADDR: "http://openbao-{{ .Values.cluster.namespace }}.{{ .Values.cluster.namespace }}.svc.cluster.local:8200"
           VAULT_ENV_VAULT_ADDR: "http://openbao-{{ .Values.cluster.namespace }}.{{ .Values.cluster.namespace }}.svc.cluster.local:8200"
           VAULT_ROLE: "{{ .Values.secrets.secretEngine }}-role"
           VAULT_IMAGE: "{{ .Values.vault_webhook.image.repository }}:{{ .Values.vault_webhook.image.tag }}"
+          # El webhook rechaza (silenciosamente: failurePolicy=Ignore, el pod arranca SIN
+          # mutar) cualquier vault.security.banzaicloud.io/vault-addr que no este en esta
+          # lista. La mayoria de los pods del participante (Keycloak, contract, etc.) piden
+          # el host PUBLICO de OpenBao (vault-addr: https://secrets-<common>.<dominio>), no
+          # el Service interno de VAULT_ADDR de arriba. Sin este allowlist, el error queda
+          # solo en los logs del propio webhook ("address ... is not in the configured
+          # allowlist") y el pod sigue con el valor LITERAL "vault:..." como si fuera la
+          # password/secreto real — visto en vivo en extletest/eks-external-rioja
+          # (Keycloak: "password authentication failed for user ..." con la cadena
+          # vault:simpl-secrets/... sin resolver).
+          VAULT_ADDR_ALLOWLIST: "http://openbao-{{ .Values.cluster.namespace }}.{{ .Values.cluster.namespace }}.svc.cluster.local:8200,https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
         {{- if eq .Values.resourcePreset "low" }}
         resources:
           requests:

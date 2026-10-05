@@ -63,7 +63,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: trigger-init
-        image: docker.io/rancher/kubectl:v1.35.2
+        image: docker.io/alpine/k8s:1.35.2
         imagePullPolicy: IfNotPresent
         command:
         - sh

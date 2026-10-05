@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-env-configmap
+data:
+  {{- /*
+    Perfil de Spring a partir de .Values.profile (como en la copia de simpl-participant-connector).
+    El chart publico lo documenta pero no lo emitia: tier1 arrancaba sin perfil participant y sin
+    sus rutas (p. ej. /auth hacia el Keycloak del participante, que daba 404), y ademas con las URLs
+    de una authority. Esas URLs solo van con profile: authority.
+  */}}
+  SPRING_PROFILES_ACTIVE: {{ .Values.profile | default "participant" | quote }}
+  {{- if eq (.Values.profile | default "participant") "authority" }}
+  {{- with .Values.onboardingUrl }}
+  ONBOARDING_URL: {{ tpl . $ | quote }}
+  {{- end }}
+  {{- with .Values.ejbcaUrl }}
+  EJBCA_URL: {{ tpl . $ | quote }}
+  {{- end }}
+  {{- with .Values.identityProviderUrl }}
+  IDENTITY_PROVIDER_URL: {{ tpl . $ | quote }}
+  {{- end }}
+  {{- with .Values.securityAttributesProviderUrl }}
+  SAP_URL: {{ tpl . $ | quote }}
+  {{- end }}
+  {{- with .Values.consentManagementUrl }}
+  CONSENT_MANAGEMENT_URL: {{ tpl . $ | quote }}
+  {{- end }}
+  {{- end }}
+
+
+  GATEWAY_URL: {{ tpl (printf "%s%s" "https://" .Values.hostT1) . | quote }}
+  USERSROLES_URL: {{ tpl .Values.usersRolesUrl . | quote }}
+  KEYCLOAK_URL: {{ tpl .Values.keycloakUrl . | quote }}
+  AUTHENTICATION_PROVIDER_URL: {{ tpl .Values.authenticationProviderUrl . | quote }}
+
+  CORS_ALLOWED_HEADERS: {{ .Values.cors.allowedHeaders | quote }}
+  CORS_ALLOWED_ORIGINS: {{ tpl .Values.cors.allowOrigin . | quote }}
+
+  {{- if .Values.devMode  }}
+  LOGGING_CONFIG: classpath:log4j2-local.xml
+  {{- end }}

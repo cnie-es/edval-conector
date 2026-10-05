@@ -1,0 +1,135 @@
+{{- if .Values.caTrust.enabled }}
+{{- /*
+Truststore Java con las CAs publicas del JVM MAS caTrust.caBundle, como Secret java-truststore
+(clave truststore.p12, password "changeit": solo lleva certificados publicos). Lo montan
+tier1-gateway, tier2-gateway y authentication-provider-be (helper connector.javaTrustValues).
+
+Se genera aqui y no se versiona el binario: asi las CAs publicas son las de la JRE del Job y no
+una foto fija. El Job lleva en el nombre la huella del bundle, de modo que cambiar la CA lanza
+uno nuevo (los Jobs son inmutables). Los pods que lo montan esperan en ContainerCreating hasta
+que existe el Secret y arrancan solos.
+*/}}
+{{- $sum := .Values.caTrust.caBundle | sha256sum | trunc 8 }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: java-truststore-ca
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+  ca-bundle.pem: |
+{{ .Values.caTrust.caBundle | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: java-truststore-env
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+  JAVA_TOOL_OPTIONS: "-Djavax.net.ssl.trustStore=/truststore/truststore.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword=changeit"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: java-truststore-builder
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: java-truststore-builder
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+rules:
+  # create no admite resourceNames; get/patch/update quedan acotados al Secret del truststore.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["java-truststore"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: java-truststore-builder
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: java-truststore-builder
+subjects:
+  - kind: ServiceAccount
+    name: java-truststore-builder
+    namespace: {{ .Values.cluster.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: java-truststore-builder-{{ $sum }}
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      serviceAccountName: java-truststore-builder
+      restartPolicy: OnFailure
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: build
+          image: {{ .Values.caTrust.jreImage }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              SRC="$JAVA_HOME/lib/security/cacerts"
+              keytool -importkeystore -noprompt -srckeystore "$SRC" -srcstorepass changeit \
+                -destkeystore /out/truststore.p12 -deststoretype PKCS12 -deststorepass changeit >/dev/null
+              # Un alias por certificado del bundle (CA intermedia y raiz).
+              awk '/BEGIN CERT/{n++} n{print > ("/tmp/ca-" n ".pem")}' /ca/ca-bundle.pem
+              for f in /tmp/ca-*.pem; do
+                keytool -importcert -noprompt -alias "private-$(basename "$f" .pem)" -file "$f" \
+                  -keystore /out/truststore.p12 -storepass changeit
+              done
+              keytool -list -keystore /out/truststore.p12 -storepass changeit | grep -c trustedCertEntry
+          volumeMounts:
+            - name: ca
+              mountPath: /ca
+              readOnly: true
+            - name: out
+              mountPath: /out
+      containers:
+        - name: publish
+          image: {{ .Values.caTrust.kubectlImage }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              kubectl -n {{ .Values.cluster.namespace }} create secret generic java-truststore \
+                --from-file=truststore.p12=/out/truststore.p12 --dry-run=client -o yaml \
+                | kubectl -n {{ .Values.cluster.namespace }} apply -f -
+          volumeMounts:
+            - name: out
+              mountPath: /out
+              readOnly: true
+      volumes:
+        - name: ca
+          configMap:
+            name: java-truststore-ca
+        - name: out
+          emptyDir: {}
+{{- end }}

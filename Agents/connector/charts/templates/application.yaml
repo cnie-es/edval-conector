@@ -20,6 +20,10 @@ spec:
       - ApplyOutOfSyncOnly=true
       - CreateNamespace=true
       - ServerSideApply=true
+  {{- /*
+    Sin ignoreDifferences para signer y simpl-files: sus arreglos ('.' en vez de 'source' y el
+    emptyDir de /tmp) estan ahora en sus charts de vendor/, y el estado vivo coincide con git.
+  */}}
   project: {{ .Values.project }}
   destination:
     server: {{ .Values.cluster.address }}
@@ -29,7 +33,10 @@ spec:
     targetRevision: {{ .Values.values.branch }}
     ref: values
   # Redis
-  - repoURL: oci://registry-1.docker.io/bitnamicharts
+  # Sin oci://: con el prefijo, ArgoCD 3.x lo trata como artefacto OCI nativo, ignora `chart` y
+  # pide .../bitnamicharts/manifests/<version> (401 de Docker Hub). Asi va por Helm OCI y
+  # necesita el repositorio registry-1.docker.io/bitnamicharts dado de alta con enableOCI.
+  - repoURL: registry-1.docker.io/bitnamicharts
     targetRevision: 19.6.0
     chart: redis
     helm:
@@ -39,6 +46,12 @@ spec:
         {{- end }}
       values: |
         fullnameOverride: {{ .Values.redis.nameOverride }}
+        {{- /* El ServiceMonitor que activa app-values/Redis solo si el cluster tiene Prometheus Operator: sin el CRD el sync entero falla. */}}
+        {{- if not (and .Values.observability.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1")) }}
+        metrics:
+          serviceMonitor:
+            enabled: false
+        {{- end }}
         master:
           podAnnotations:
             vault.security.banzaicloud.io/vault-addr: "https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
@@ -128,6 +141,10 @@ spec:
           password: vault:{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-postgres-passwords#{{ .Values.cluster.namespace }}-keycloak
         realmHardening:
           enabled: true
+          # Default del chart: quay.io/keycloak/keycloak:26.3.2 (oficial, sin curl/bash) ->
+          # "curl: command not found" en el Job, bucle infinito. Misma imagen bitnamilegacy que
+          # el pod principal (si tiene curl+bash). Visto en vivo en extletest/eks-external-rioja.
+          image: "docker.io/bitnamilegacy/keycloak:26.3.2-debian-12-r2"
           keycloakUrl: "http://keycloak.{{ .Values.cluster.namespace }}.svc.cluster.local"
           adminUser: "admin"
           adminPassword: "vault:{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-keycloak#admin"
@@ -226,6 +243,31 @@ spec:
         # authority. Comprobado en caliente sobre stageaytopruebautom.
         - name: EDNEL_EMAIL_ASSET_BASE_URL
           value: "https://vallelengua.es"
+        # El entrypoint de la imagen Bitnami hace su PROPIA comprobacion de arranque con
+        # KEYCLOAK_DATABASE_* (convencion legacy propia de Bitnami), separada de KC_DB_URL
+        # (que SI genera bien el ConfigMap del chart a partir de externalDatabase.host).
+        # Sin esto, KEYCLOAK_DATABASE_HOST cae al default hardcodeado del script
+        # ("postgresql") y el pod se queda reintentando "cannot resolve host postgresql"
+        # para siempre, aunque KC_DB_URL apunte bien a pg-cluster. Visto en vivo en
+        # extletest/eks-external-rioja (libkeycloak.sh:299-306, keycloak_initialize()).
+        # Sin KEYCLOAK_DATABASE_VENDOR: el entrypoint lo pasa tal cual a KC_DB y Keycloak 26 solo
+        # acepta "postgres" ("Invalid value for option 'KC_DB': postgresql"). El vendor ya sale de
+        # KC_DB_URL.
+        - name: KEYCLOAK_DATABASE_HOST
+          value: "pg-cluster.{{ .Values.cluster.namespace }}.svc.cluster.local"
+        - name: KEYCLOAK_DATABASE_PORT
+          value: "5432"
+        - name: KEYCLOAK_DATABASE_NAME
+          value: "{{ .Values.namespaceTag.dataprovider }}_keycloak"
+        - name: KEYCLOAK_DATABASE_USER
+          value: "{{ .Values.namespaceTag.dataprovider }}_keycloak"
+        - name: KEYCLOAK_DATABASE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              # Mismo Secret/clave que usa KC_DB_PASSWORD (lo crea este mismo chart a partir
+              # de externalDatabase.password, nombre fijo "<fullnameOverride>-externaldb").
+              name: keycloak-externaldb
+              key: db-password
         initContainers:
         - name: download-realm
           image: docker.io/curlimages/curl:8.18.0
@@ -259,7 +301,28 @@ spec:
             # correo de UPDATE_PASSWORD; hasta ahora el realm tenia smtpServer vacio y su
             # Keycloak no podia enviar nada.
             # El Secret lo replica common-sealed-secrets al namespace del participante
-            # (scope 'hybrids'), ver edval-gitops#169.
+            # (scope 'hybrids'), ver edval-gitops#169 — SOLO para el core interno.
+            #
+            # Un participante EXTERNO (embeddedCommon.enabled=true) no tiene ese Secret ni
+            # forma de que se lo repliquen (no hay common-sealed-secrets fuera del core, y
+            # muchos externos ni siquiera tienen sealed-secrets controller). Sin este if, el
+            # initContainer import-realm se queda en CreateContainerConfigError para
+            # siempre: "secret notification-smtp not found" (visto en vivo en
+            # extletest/eks-external-rioja). Para externos se vuelve al comportamiento
+            # previo a edval-gitops#169: smtpServer vacio, Keycloak no manda ese correo pero
+            # arranca.
+            {{- if .Values.embeddedCommon.enabled }}
+            - name: SMTP_HOST
+              value: ""
+            - name: SMTP_PORT
+              value: ""
+            - name: SMTP_STARTTLS
+              value: ""
+            - name: SMTP_USERNAME
+              value: ""
+            - name: SMTP_PASSWORD
+              value: ""
+            {{- else }}
             - name: SMTP_HOST
               valueFrom:
                 secretKeyRef:
@@ -285,6 +348,7 @@ spec:
                 secretKeyRef:
                   name: notification-smtp
                   key: SMTP_PASSWORD
+            {{- end }}
             - name: ADMIN_DATAPROVIDER_FIRSTNAME
               value: {{ .Values.keycloak.adminUser.firstName | quote }}
             - name: ADMIN_DATAPROVIDER_LASTNAME
@@ -362,7 +426,7 @@ spec:
           clusterIssuer: {{ .Values.cluster.issuer }}
         domain: {{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         image:
-          registry: ghcr.io/cnie-es
+          repository: "ghcr.io/ednel-rioja/k8s-images/sdtooling-api-be"
           tag: {{ .Values.imagesTags.sdtoolingApiBe }}
         catalogueAdapter:
           tier2Gateway:
@@ -497,7 +561,7 @@ spec:
   - repoURL: https://github.com/cnie-es/simpl-contract-consumption-be.git
     targetRevision: 1.20.2-edval
     path: charts
-    targetRevision: {{ .Values.values.branch }}
+    targetRevision: {{ .Values.chartRevisions.contractConsumptionBe }}
     helm:
       valueFiles:
         {{- range .Values.contract_consumption_be.valueFiles }}
@@ -505,7 +569,7 @@ spec:
         {{- end }}
       values: |
         image:
-          repository: "ghcr.io/cnie-es/contract-consumption-be"
+          repository: "ghcr.io/ednel-rioja/k8s-images/data1-contract-consumption-be"
           tag: {{ .Values.imagesTags.contractConsumptionBe | quote }}
         domain: {{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         {{- if eq .Values.resourcePreset "low" }}
@@ -535,9 +599,10 @@ spec:
   {{- end }}
   {{- if .Values.signer.enabled }}
   # Signer
-  - repoURL: https://code.europa.eu/api/v4/projects/2111/packages/helm/stable
-    targetRevision: 0.1.0
-    chart: signer
+  # Chart en vendor/signer (el publico de code.europa.eu, con el arreglo dentro en vez de un parche en vivo).
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/signer
     helm:
       valueFiles:
         {{- range .Values.signer.valueFiles }}
@@ -554,14 +619,16 @@ spec:
           frontendDomain: signer-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
           annotations:
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
-        hashicorp:
-          {{- with include "connector.vaultCaSecret" $ }}
-          tlsSecret: {{ . }}
-          {{- end }}
-          service: "https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
+        # El chart (code.europa.eu/.../signer) NO lee hashicorp.*/secretEngine/secretConfigPath
+        # (esas claves no existen en su schema) -- las ignora en silencio y su init container
+        # cae al default hardcodeado del chart (un Vault de sandbox de SIMPL-open ajeno,
+        # sandbox-cat-dat, "namespace not authorized"). Claves reales confirmadas en su
+        # values.yaml publicado: vault.address/role/secretPath. Visto en vivo en
+        # extletest/eks-external-rioja.
+        vault:
+          address: "https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
           role: {{ .Values.secrets.role }}
-        secretEngine: {{ .Values.secrets.secretEngine }}
-        secretConfigPath: "{{ .Values.secrets.secretEngine }}/{{ .Values.cluster.namespace }}-infra-adapter-simpl-backend"
+          secretPath: "/v1/{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-infra-adapter-simpl-backend"
   {{- end }}
   {{- if .Values.simpl_catalogue_client.enabled }}
   # Simpl Catalogue Client
@@ -586,9 +653,11 @@ spec:
           className: apisix
           annotations:
             kubernetes.io/ingress.class: apisix
-            {{- if and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal) }}
+            {{- if or (.Values.tls).perHost (and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal)) }}
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+            {{- if not (.Values.tls).perHost }}
             acme.cert-manager.io/http01-edit-in-place: "true"
+            {{- end }}
             {{- end }}
             k8s.apisix.apache.org/proxy-body-size: 5m
             k8s.apisix.apache.org/proxy-buffering: "on"
@@ -599,7 +668,7 @@ spec:
               - path: /*
                 pathType: ImplementationSpecific
           tls:
-            - secretName: {{ .Values.wildcardTlsSecretName | default (printf "catalogue-ui-%s-tls" .Values.namespaceTag.dataprovider) }}
+            - secretName: {{ if (.Values.tls).perHost }}{{ printf "catalogue-ui-%s-tls" .Values.namespaceTag.dataprovider }}{{ else }}{{ .Values.wildcardTlsSecretName | default (printf "catalogue-ui-%s-tls" .Values.namespaceTag.dataprovider) }}{{ end }}
               hosts:
                 - catalogue-ui-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         {{- if eq .Values.resourcePreset "low" }}
@@ -614,9 +683,11 @@ spec:
         {{- end }}
   {{- end }}
   # Tier 1 Gateway
-  - repoURL: https://code.europa.eu/api/v4/projects/772/packages/helm/stable
-    targetRevision: 2.16.0-rc.1379
-    chart: tier1-gateway
+  # Chart en vendor/ con ingressClassName apisix: el original lo trae fijo a nginx y en los clusters
+  # del conector solo hay controlador de APISIX.
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/tier1-gateway
     helm:
       valueFiles:
         {{- range .Values.tier1_gateway.valueFiles }}
@@ -624,11 +695,7 @@ spec:
         {{- end }}
       values: |
         {{- if $.Values.caTrust.enabled }}
-        caTrust:
-          enabled: true
-          secretName: {{ $.Values.caTrust.secretName }}
-          caKey: {{ $.Values.caTrust.caKey }}
-          alias: {{ $.Values.caTrust.alias }}
+        {{- include "connector.javaTrustValues" (dict "root" $ "chart" "tier1-gateway") | nindent 8 }}
         {{- end }}
         hostT1: participant-be-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         image:
@@ -691,7 +758,7 @@ spec:
           vault.security.banzaicloud.io/vault-env-image: "ghcr.io/bank-vaults/vault-env:v1.22.1"
         hostT1: participant-be-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         image:
-          registry: ghcr.io/cnie-es
+          repository: "ghcr.io/ednel-rioja/k8s-images/users-roles"
           tag: {{ .Values.imagesTags.usersRoles }}
         authorityHostT2: tls-authority-{{ .Values.namespaceTag.authority }}.{{ include "connector.authorityDomain" . }}
         global:
@@ -753,9 +820,11 @@ spec:
           {{- end }}
         {{- end }}
   # Users Roles FE
-  - repoURL: https://github.com/cnie-es/simpl-fe-users-and-roles.git
-    targetRevision: ednel-v1.0.2
-    path: charts
+  # Chart en vendor/ con ingressClassName apisix: el original lo trae fijo a nginx y en los clusters
+  # del conector solo hay controlador de APISIX.
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/fe-users-and-roles
     helm:
       {{- if .Values.users_roles_fe.valueFiles }}
       valueFiles:
@@ -778,7 +847,7 @@ spec:
         cors:
           allowOrigin: https://participant-fe-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }},https://participant-be-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }},http://localhost:4202,http://localhost:4203,http://localhost:3000
         image:
-          registry: ghcr.io/cnie-es
+          repository: "ghcr.io/ednel-rioja/k8s-images/fe-users-and-roles"
           tag: {{ .Values.imagesTags.usersRolesFe }}
         env:
         - name: API_URL
@@ -800,9 +869,12 @@ spec:
           {{- end }}
         {{- end }}
   # Tier 2 Gateway
-  - repoURL: https://code.europa.eu/api/v4/projects/860/packages/helm/stable
-    targetRevision: 2.13.0-rc.1242
-    chart: tier2-gateway
+  # Chart en vendor/ (el publico de code.europa.eu) para poder anotar el Service: el original
+  # solo pone las de external-dns, y en EKS el AWS Load Balancer Controller lo crea entonces como
+  # NLB INTERNO, con lo que tls-participant no es alcanzable desde fuera de la VPC.
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/tier2-gateway
     helm:
       valueFiles:
         {{- range .Values.tier2_gateway.valueFiles }}
@@ -841,12 +913,15 @@ spec:
         lbNetwork: {{ . }}
         {{- end }}
         {{- end }}
+        {{- if eq .Values.lbNetwork "cloud" }}
+        # Cloud (EKS): NLB publico. Sin esta anotacion el AWS Load Balancer Controller lo crea
+        # interno y tls-participant resuelve a una IP privada de la VPC.
+        service:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+        {{- end }}
         {{- if $.Values.caTrust.enabled }}
-        caTrust:
-          enabled: true
-          secretName: {{ $.Values.caTrust.secretName }}
-          caKey: {{ $.Values.caTrust.caKey }}
-          alias: {{ $.Values.caTrust.alias }}
+        {{- include "connector.javaTrustValues" (dict "root" $ "chart" "tier2-gateway") | nindent 8 }}
         {{- end }}
         authorityUrlT1: "https://authority-be-{{ .Values.namespaceTag.authority }}.{{ include "connector.authorityDomain" . }}"
         kafkaConfig:
@@ -910,11 +985,7 @@ spec:
         {{- end }}
       values: |
         {{- if $.Values.caTrust.enabled }}
-        caTrust:
-          enabled: true
-          secretName: {{ $.Values.caTrust.secretName }}
-          caKey: {{ $.Values.caTrust.caKey }}
-          alias: {{ $.Values.caTrust.alias }}
+        {{- include "connector.javaTrustValues" (dict "root" $ "chart" "authentication-provider-be") | nindent 8 }}
         {{- end }}
         podAnnotations:
           vault.security.banzaicloud.io/vault-addr: "https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
@@ -994,9 +1065,11 @@ spec:
           {{- end }}
         {{- end }}
   # Authentication Provider FE
-  - repoURL: https://github.com/cnie-es/simpl-fe-authentication-provider.git
-    targetRevision: ednel-v1.0.2
-    path: charts
+  # Chart en vendor/ con ingressClassName apisix: el original lo trae fijo a nginx y en los clusters
+  # del conector solo hay controlador de APISIX.
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/fe-authentication-provider
     helm:
       {{- if .Values.auth_provider_fe.valueFiles }}
       valueFiles:
@@ -1019,7 +1092,7 @@ spec:
         cors:
           allowOrigin: https://participant-fe-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }},https://participant-be-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }},http://localhost:4202,http://localhost:4203,http://localhost:3000
         image:
-          registry: ghcr.io/cnie-es
+          repository: "ghcr.io/ednel-rioja/k8s-images/fe-authentication-provider"
           tag: {{ .Values.imagesTags.feAuthenticationProvider }}
         env:
         - name: API_URL
@@ -1058,9 +1131,11 @@ spec:
           className: apisix
           annotations:
             kubernetes.io/ingress.class: apisix
-            {{- if and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal) }}
+            {{- if or (.Values.tls).perHost (and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal)) }}
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+            {{- if not (.Values.tls).perHost }}
             acme.cert-manager.io/http01-edit-in-place: "true"
+            {{- end }}
             {{- end }}
             k8s.apisix.apache.org/proxy-body-size: 5m
             k8s.apisix.apache.org/proxy-buffering: "on"
@@ -1071,7 +1146,7 @@ spec:
               - path: /*
                 pathType: ImplementationSpecific
           tls:
-            - secretName: {{ .Values.wildcardTlsSecretName | default (printf "sd-ui-%s-tls" .Values.namespaceTag.dataprovider) }}
+            - secretName: {{ if (.Values.tls).perHost }}{{ printf "sd-ui-%s-tls" .Values.namespaceTag.dataprovider }}{{ else }}{{ .Values.wildcardTlsSecretName | default (printf "sd-ui-%s-tls" .Values.namespaceTag.dataprovider) }}{{ end }}
               hosts:
                 - sd-ui-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         env:
@@ -1091,9 +1166,11 @@ spec:
   {{- end }}
   {{- if .Values.data_dashboard.enabled }}
   # Data Dashboard
-  - repoURL: https://github.com/cnie-es/edc-data-dashboard.git
-    targetRevision: v1.0.5-edval
-    path: charts
+  # cnie-es/edc-data-dashboard es el codigo de la app y no trae chart de Helm; el chart va en
+  # vendor/data-dashboard (copiado de external/data-dashboard de simpl-participant-connector).
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/data-dashboard
     helm:
       valueFiles:
         {{- range .Values.data_dashboard.valueFiles }}
@@ -1102,16 +1179,18 @@ spec:
       values: |
         fullnameOverride: {{ .Values.data_dashboard.nameOverride }}
         image:
-          registry: ghcr.io/cnie-es
+          repository: "ghcr.io/ednel-rioja/k8s-images/datadashboard"
           tag: {{ .Values.imagesTags.dataDashboard }}
         ingress:
           enabled: true
           className: apisix
           annotations:
             kubernetes.io/ingress.class: apisix
-            {{- if and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal) }}
+            {{- if or (.Values.tls).perHost (and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal)) }}
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+            {{- if not (.Values.tls).perHost }}
             acme.cert-manager.io/http01-edit-in-place: "true"
+            {{- end }}
             {{- end }}
             k8s.apisix.apache.org/proxy-body-size: "5m"
             k8s.apisix.apache.org/proxy-buffer-size: "8k"
@@ -1122,7 +1201,7 @@ spec:
                 - path: /
                   pathType: Prefix
           tls:
-            - secretName: {{ .Values.wildcardTlsSecretName | default (printf "data-dashboard-%s-tls" .Values.namespaceTag.dataprovider) }}
+            - secretName: {{ if (.Values.tls).perHost }}{{ printf "data-dashboard-%s-tls" .Values.namespaceTag.dataprovider }}{{ else }}{{ .Values.wildcardTlsSecretName | default (printf "data-dashboard-%s-tls" .Values.namespaceTag.dataprovider) }}{{ end }}
               hosts:
                 - data-dashboard-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         config:
@@ -1171,6 +1250,7 @@ spec:
         {{- end }}
       values: |
         deployment:
+          image: {{ .Values.images.simplEdc }}
           tag: {{ .Values.imagesTags.simplEdc }}
           host: {{ .Values.simpl_edc.nameOverride }}-service
           callbackAddress: "https://tls-participant-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/edc"
@@ -1179,6 +1259,11 @@ spec:
           edcParticipantId: {{ .Values.cluster.namespace }}
         postgresql:
           username: {{ .Values.cluster.namespace }}_edc
+        # El chart cnie-es/simpl-edc comprueba tls.url.participantIdSource pero el curl de su init
+        # wait-for-participant-id usa tls.participantIdSource: sin esta clave el init llama a curl sin
+        # URL ("no URL specified") y el EDC no arranca nunca.
+        tls:
+          participantIdSource: http://authentication-provider:8080/v1/credentials
         hashicorp:
           {{- with include "connector.vaultCaSecret" $ }}
           tlsSecret: {{ . }}
@@ -1219,6 +1304,7 @@ spec:
         {{- end }}
       values: |
         deployment:
+          image: {{ .Values.images.simplEdc }}
           tag: {{ .Values.imagesTags.simplEdc }}
           host: {{ .Values.simpl_edc_consumer.nameOverride }}-service
           callbackAddress: "https://tls-participant-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/edc"
@@ -1227,6 +1313,11 @@ spec:
           edcParticipantId: {{ .Values.cluster.namespace }}
         postgresql:
           username: {{ .Values.cluster.namespace }}_edc_consumer
+        # El chart cnie-es/simpl-edc comprueba tls.url.participantIdSource pero el curl de su init
+        # wait-for-participant-id usa tls.participantIdSource: sin esta clave el init llama a curl sin
+        # URL ("no URL specified") y el EDC no arranca nunca.
+        tls:
+          participantIdSource: http://authentication-provider:8080/v1/credentials
         hashicorp:
           {{- with include "connector.vaultCaSecret" $ }}
           tlsSecret: {{ . }}
@@ -1264,7 +1355,7 @@ spec:
         {{- end }}
       values: |
         image:
-          registry: ghcr.io/cnie-es
+          repository: "ghcr.io/ednel-rioja/k8s-images/data1-edcconnectoradapter"
           tag: {{ .Values.imagesTags.edcConnectorAdapter | quote }}
         domain: {{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         ingress:
@@ -1299,7 +1390,7 @@ spec:
   - repoURL: https://github.com/cnie-es/simpl-edc-connector-adapter.git
     targetRevision: 1.14.0-edval
     path: charts
-    targetRevision: {{ .Values.values.branch }}
+    targetRevision: {{ .Values.chartRevisions.edcConnectorAdapter }}
     helm:
       releaseName: {{ .Values.edc_connector_adapter_consumer.nameOverride }}
       valueFiles:
@@ -1308,7 +1399,7 @@ spec:
         {{- end }}
       values: |
         image:
-          registry: ghcr.io/cnie-es
+          repository: "ghcr.io/ednel-rioja/k8s-images/data1-edcconnectoradapter"
           tag: {{ .Values.imagesTags.edcConnectorAdapter | quote }}
         ingress:
           clusterIssuer: {{ .Values.cluster.issuer }}
@@ -1443,7 +1534,7 @@ spec:
           vault.security.banzaicloud.io/vault-env-image: "ghcr.io/bank-vaults/vault-env:v1.22.1"
         deployment:
           image:
-            registry: ghcr.io/cnie-es
+            artifact: "ghcr.io/ednel-rioja/k8s-images/contract-billing-contract"
             tag: {{ .Values.imagesTags.contract }}
           db:
             url: "jdbc:postgresql://pg-cluster.{{ .Values.cluster.namespace }}.svc.cluster.local:5432/{{ .Values.cluster.namespace }}_contract"
@@ -1503,7 +1594,7 @@ spec:
           vault.security.banzaicloud.io/vault-env-image: "ghcr.io/bank-vaults/vault-env:v1.22.1"
         deployment:
           image:
-            registry: ghcr.io/cnie-es
+            artifact: "ghcr.io/ednel-rioja/k8s-images/contract-billing-contract"
             tag: {{ .Values.imagesTags.contract }}
           db:
             url: "jdbc:postgresql://pg-cluster.{{ .Values.cluster.namespace }}.svc.cluster.local:5432/{{ .Values.cluster.namespace }}_contract_consumer"
@@ -1567,9 +1658,10 @@ spec:
           tag: {{ .Values.imagesTags.stubs }}
   {{- if .Values.files.enabled }}
   # Files
-  - repoURL: https://code.europa.eu/api/v4/projects/978/packages/helm/stable
-    targetRevision: 1.4.0
-    chart: simpl-files
+  # Chart en vendor/simpl-files (el publico de code.europa.eu, con el arreglo dentro en vez de un parche en vivo).
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/simpl-files
     helm:
       valueFiles:
         {{- range .Values.files.valueFiles }}
@@ -1580,6 +1672,8 @@ spec:
           registry: ghcr.io/cnie-es
           tag: {{ .Values.imagesTags.simplFiles }}
         ingress:
+          # El chart trae nginx por defecto; aqui el unico controlador es APISIX.
+          ingressClass: apisix
           hostname: files-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
           secretName: files-{{ .Values.namespaceTag.dataprovider }}-tls
           clusterIssuer: {{ .Values.cluster.issuer }}
@@ -1837,7 +1931,13 @@ spec:
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
   {{- end }}
 
-  {{- if .Values.observability.enabled }}
+  {{- /*
+    Solo con Prometheus Operator en el cluster (monitoring.coreos.com/v1): el chart crea Probe,
+    PodMonitor y PrometheusRule, y sin esos CRDs el sync de la Application principal falla
+    entero ("could not find monitoring.coreos.com/PrometheusRule"). ArgoCD pasa al render las
+    APIs del cluster destino.
+  */}}
+  {{- if and .Values.observability.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
   # Observabilidad Prometheus del participante: blackbox-exporter + Probe de sus Ingress,
   # PodMonitor de Patroni y las reglas criticas que tienen dato hoy.
   # El blackbox de la authority NO cubre esto: sus 20 targets son todos de prodauth, y un

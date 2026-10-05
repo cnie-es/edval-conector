@@ -1,6 +1,6 @@
 kafka:
   image:
-    registry: ghcr.io/cnie-es
+    registry: docker.io
     application: cp-server
     tag: 8.0.1
     initImage: confluent-init-container
@@ -94,7 +94,7 @@ kafka:
 kraftController:
   replicas: 3
   image:
-    registry: ghcr.io/cnie-es
+    registry: docker.io
     application: cp-server
     tag: 8.0.1
     initImage: confluent-init-container

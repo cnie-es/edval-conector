@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simpl-fe-ingress-{{ .Values.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/cors-allow-headers: Access-Control-Allow-Headers,Access-Control-Allow-Credentials,Access-Control-Allow-Origin,Access-Control-Allow-Methods,Keep-Alive,User-Agent,Content-Type,Authorization,Tenant,Channel,Platform,Set-Cookie,geolocation,x-mobility-mode,device,Cache-Control,X-Request-With,Accept,Origin
+    nginx.ingress.kubernetes.io/cors-allow-origin: {{ tpl .Values.cors.allowOrigin . }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.issuer }}
+    cert-manager.io/renew-before: "720h"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "apisix" }}
+  tls:
+    - hosts:
+        - {{ tpl .Values.hostFe . }}
+      secretName: {{ tpl .Values.hostFe . }}-cert
+  rules:
+    -
+      host: {{ tpl .Values.hostFe . }}
+      http:
+        paths:
+        # /* final: con ImplementationSpecific APISIX toma el path literal (ver tier1-gateway).
+        - path: "{{ .Values.path }}/*"
+          pathType: ImplementationSpecific
+          backend:
+            service:
+              name: {{ $.Chart.Name }}-{{ $.Values.name }}
+              port:
+                number: {{ .Values.service.port }}

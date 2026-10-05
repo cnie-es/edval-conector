@@ -1,0 +1,40 @@
+{{- /*
+PVCs compartidas en modo RWX que varios de los componentes de SIMPL-open (no de los 9 EDVAL)
+esperan que ya existan con ese nombre fijo, sin crearlas ellos mismos ni exponer ninguna clave
+para configurar el volumen. Sin ellas, los pods quedan en Pending para siempre:
+  "persistentvolumeclaim \"nfs-storage-pvc\" / \"nfs-storage-pvc-sd\" not found".
+Visto en vivo en extletest/eks-external-rioja. Mismo patron que nfs-storage-pvc-sd ya en uso en
+cnieawsdev1 (eks-rioja-2): StorageClass "nfs" (nfs-server-provisioner), RWX, 1Gi.
+
+nfsStorageClassName es configurable porque el nombre de la StorageClass puede variar entre
+clusters; "nfs" es el que existe hoy en eks-external-rioja.
+*/}}
+{{- if or .Values.sdtooling_api_be.enabled .Values.xfsc_advsearch_be.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-storage-pvc-sd
+  namespace: {{ .Values.cluster.namespace }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ .Values.nfsStorageClassName | default "nfs" }}
+  resources:
+    requests:
+      storage: 1Gi
+{{- end }}
+{{- if .Values.files.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-storage-pvc
+  namespace: {{ .Values.cluster.namespace }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ .Values.nfsStorageClassName | default "nfs" }}
+  resources:
+    requests:
+      storage: 1Gi
+{{- end }}
