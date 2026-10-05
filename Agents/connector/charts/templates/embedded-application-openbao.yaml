@@ -59,14 +59,14 @@ spec:
         fullnameOverride: openbao-{{ .Release.Namespace }}
         injector:
           agentImage:
-            registry: ghcr.io
-            repository: cnie-es/openbao
+            registry: docker.io
+            repository: openbao/openbao
             tag: "2.4.3"
-          # El vault-agent inyectado resuelve el servidor por el Service normal por
-          # defecto, que durante el unseal no tiene endpoints listos (timeout). El
-          # chart publico ya trae el Service headless de cluster (`-internal`,
-          # puerto 8201) pensado para esto -- no hace falta forkear el chart.
-          externalVaultAddr: "http://openbao-{{ .Release.Namespace }}-internal.{{ .Values.cluster.namespace }}.svc:8201"
+          {{- /*
+            Sin injector.externalVaultAddr: en openbao-helm ese valor pone el chart en modo
+            "external" (_helpers.tpl, openbao.mode) y entonces NO despliega el servidor, ni su
+            StatefulSet ni su Ingress. El conector se quedaba sin OpenBao.
+          */}}
           {{- if .Values.nodeSelector }}
           nodeSelector: {{- toYaml .Values.nodeSelector | nindent 12 }}
           {{- end }}
@@ -86,24 +86,37 @@ spec:
           nodeSelector: {{- toYaml .Values.nodeSelector | nindent 12 }}
           {{- end }}
           ingress:
+            {{- /* tls.perHost: certificado propio del host, emitido por cert-manager con cluster.issuer. */}}
+            {{- if (.Values.tls).perHost }}
+            annotations:
+              cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
+            {{- end }}
             hosts:
               - host: secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}
             tls:
-              - secretName: {{ (.Values.tls).secretName | default "wildcard-tls" }}
+              - secretName: {{ include "connector.openbaoTlsSecret" . }}
                 hosts:
                   - secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}
           # Shamir seal (default); unseal handled by openbao-init job + watchdog
           serviceAccount:
             create: true
             name: openbao
+          {{- /*
+            El listener tiene tls_disable = 1, asi que OpenBao no lee este montaje; se mantiene en
+            modo wildcard para no cambiar el pod de los despliegues que ya existen. Con tls.perHost
+            se omite: montar un Secret que emite cert-manager dejaria el pod esperando a que exista,
+            y el certificado depende a su vez de que el ingress este publicado.
+          */}}
+          {{- if not (.Values.tls).perHost }}
           volumes:
             - name: wildcard-tls
               secret:
-                secretName: {{ (.Values.tls).secretName | default "wildcard-tls" }}
+                secretName: {{ include "connector.openbaoTlsSecret" . }}
           volumeMounts:
             - mountPath: /vault/tls
               name: wildcard-tls
               readOnly: true
+          {{- end }}
           standalone:
             config: |
               ui = true
@@ -143,12 +156,29 @@ spec:
           authorities: []
           consumers: []
           providers: []
+          # HIBRIDO (contract_consumer.enabled, el default salvo que se aplique el overlay
+          # values-role-provider.yaml/-consumer.yaml): este namespace corre a la vez una 2a
+          # instancia de contract (consumer) y contract-consumption-be/edc-connector-adapter
+          # en modo consumer, que necesitan sus propios campos en kafka-users-secret ademas
+          # de los ya cubiertos por kafkaParticipants.providers de abajo. Ver secrets.yaml.
+          {{- if .Values.contract_consumer.enabled }}
+          hybrids:
+            - {{ .Values.cluster.namespace }}
+          {{- else }}
+          hybrids: []
+          {{- end }}
         # El conector es su propio "common": se siembran las credenciales kafka
         # para este propio participante (provider).
         kafkaParticipants:
           consumers: []
           providers:
             - {{ .Values.cluster.namespace }}
+          {{- if .Values.contract_consumer.enabled }}
+          hybrids:
+            - {{ .Values.cluster.namespace }}
+          {{- else }}
+          hybrids: []
+          {{- end }}
         {{- if .Values.nodeSelector }}
         nodeSelector: {{- toYaml .Values.nodeSelector | nindent 10 }}
         {{- end }}

@@ -1,0 +1,31 @@
+replicaCount: 1
+
+image:
+  repository: "code.europa.eu:4567/simpl/simpl-open/development/data1/simpl-files"
+  pullPolicy: IfNotPresent
+  tag: "1.4.0"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "200m"
+    memory: "128Mi"
+
+ingress:
+  hostname: files.dev.simpl-europe.eu
+  secretName: simpl-tls-files
+  clusterIssuer: dev-prod
+  ingressClass: nginx
+
+documentPvc:
+  # name of the persistent volume claim where documents are saved by sdtooling service
+  name: nfs-storage-pvc
+  mount:
+    # mount path used for documents storage (must be configured also in nginx.conf as location alias prefix)
+    path: /home/nginx/data

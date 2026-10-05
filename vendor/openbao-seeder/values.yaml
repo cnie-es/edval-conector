@@ -4,4 +4,4 @@ secretEngine: ""
 secretRole: ""
 imagePullSecretName: github-registry-secret
 kubectl:
-  image: docker.io/rancher/kubectl:v1.35.2
+  image: docker.io/alpine/kubectl:1.35.2

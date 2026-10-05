@@ -46,7 +46,7 @@ blackbox:
   replicaCount: 1
   nameOverride: ""
   image:
-    registry: ghcr.io/cnie-es
+    registry: quay.io
     repository: prometheus/blackbox-exporter
     tag: v0.28.0
     pullPolicy: IfNotPresent

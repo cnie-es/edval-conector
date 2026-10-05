@@ -1,0 +1,6 @@
+apiVersion: v2
+appVersion: 2.9.0
+description: Simpl frontend application authentication provider
+name: fe-authentication-provider
+type: application
+version: 2.9.0

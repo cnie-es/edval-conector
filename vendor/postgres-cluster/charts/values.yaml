@@ -4,8 +4,8 @@ storageClass: ""
 instances: 3
 maxConnections: 500
 image:
-  registry: ghcr.io/cnie-es
-  repository: spilo-17
+  registry: ghcr.io
+  repository: zalando/spilo-17
   tag: 4.0-p2
 resources:
   requests:

@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simpl-ingress
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.issuer }}
+    cert-manager.io/renew-before: "720h"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    {{- with .Values.cors.allowOrigin }}
+    nginx.ingress.kubernetes.io/cors-allow-origin: {{ . | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | default "apisix" }}
+  tls:
+    - hosts:
+        - {{ tpl .Values.hostT1 . }}
+      secretName: {{ tpl .Values.hostT1 . }}-cert
+  rules:
+    - host: {{ tpl .Values.hostT1 . }}
+      http:
+        paths:
+          # /* y no /: con pathType ImplementationSpecific el controlador clasico de APISIX toma
+          # el path literal y "/" casa solo con la raiz (todo lo demas, /auth, /cli..., da 404).
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Chart.Name }}
+                port:
+                  number: 9000

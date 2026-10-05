@@ -1,0 +1,23 @@
+{{- /*
+Alias "authentication-provider" del Service del authentication-provider.
+
+El chart publico (authentication-provider-be) llama a su Service como el chart
+(.Chart.Name = authentication-provider-be), pero tier1-gateway, tier2-gateway, users-roles y el
+onboarding lo buscan como http://authentication-provider.<ns>.svc.cluster.local:8080, que es el
+nombre que tiene en las copias internas del conector y on-prem. Sin el alias esas llamadas no
+resuelven. Mismos pods (selector por nombre de app) y mismo puerto.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentication-provider
+  namespace: {{ .Values.cluster.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: authentication-provider-be
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

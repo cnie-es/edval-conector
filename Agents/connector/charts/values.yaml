@@ -14,27 +14,29 @@ namespaceTag:
 resourcePreset: default
 imagesTags:
   authenticationProvider: 2.10.1
-  feAuthenticationProvider: ednel-v1.0.4
+  feAuthenticationProvider: 138a338a464378dbfe0753a532c59d36be4cd671
   tier1Gateway: 2.11.0
   tier2Gateway: 2.10.0
   tier2Proxy: 1.5.1
-  usersRoles: 9c15e07
-  usersRolesFe: ednel-v1.0.4
-  sdtoolingApiBe: 1.25.0-edval
+  usersRoles: 2.11.1
+  usersRolesFe: 31c0794f07bcbe19d7988829ba93ece21938d597
+  sdtoolingApiBe: 1.25.0-edval-v2
   sdtoolingValidationApiBe: 1.20.0
-  simplFiles: 1.2.0
+  # Igual que el chart publico simpl-files 1.4.0 (appVersion 1.4.0). Con la imagen 1.2.0 y el
+  # securityContext de ese chart (runAsUser 101) nginx no puede escribir /tmp/nginx.pid.
+  simplFiles: 1.4.0
   xfscAdvsearch: 1.22.0
-  contractConsumptionBe: 1.20.0-edval
-  edcConnectorAdapter: '9447144'
+  contractConsumptionBe: 1.20.0
+  edcConnectorAdapter: '1.15.0'
   sdUi: 1.8.0-edval
   signer: 0.0.1
   simplCatalogueClient: 2.3.2
-  simplEdc: 35a3af2
+  simplEdc: 1.0.21
   infrastructureBe: 1.3.4
   infrastructureFe: 1.2.1
   monitoring: 0.5.4
   dataDashboard: v1.0.4-edval
-  contract: 590ab9b
+  contract: 2.9.0
   stubs: 2.1.0
 argocd:
   appname: "${NAMESPACE}"
@@ -53,12 +55,23 @@ secrets:
 embeddedCommon:
   enabled: false
 wildcardTlsExternal: false
+# TLS per-host con cert-manager (p. ej. Let's Encrypt via cluster.issuer) en los ingress que por
+# defecto esperan un wildcard: OpenBao embebido, catalogue-ui, sd-ui y data-dashboard. Con true,
+# cada uno pide su certificado <host>-tls con la anotacion cert-manager.io/cluster-issuer.
+# Requiere que wildcardTlsSecretName este vacio. Con false (defecto) no cambia nada.
+tls:
+  perHost: false
 lbNetwork: public
+# Confianza en una CA privada para los servicios Java que hablan con la authority (tier1-gateway,
+# tier2-gateway, authentication-provider-be). Caso tipico: authority on-prem con *.cnie.internal
+# firmado por la CNIE Internal CA. caBundle es el PEM de la CA (y sus intermedias); es publico.
+# Ver templates/ca-truststore.yaml.
 caTrust:
   enabled: false
-  secretName: ''
-  caKey: ca.crt
-  alias: external-ca
+  caBundle: ''
+  # Imagenes del Job que construye el truststore: una JRE (keytool + cacerts) y kubectl.
+  jreImage: docker.io/library/eclipse-temurin:21-jre
+  kubectlImage: docker.io/alpine/kubectl:1.35.2
 agentList:
   authorities: []
   consumers: []
@@ -80,10 +93,15 @@ openbao_init:
   chart_name: openbao-init
 vault_webhook:
   repo_URL: https://github.com/bank-vaults/vault-secrets-webhook.git
-  targetRevision: main
+  # Fijado: con main el chart trae la imagen :latest, que desde v1.23 rechaza mutar pods cuya
+  # anotacion vault-addr no este en VAULT_ADDR_ALLOWLIST ("not in the configured allowlist"), y
+  # entonces ningun pod recibe vault-env y todos los vault:... llegan literales. v1.22.2 es la
+  # version que corre on-prem.
+  targetRevision: v1.22.2
+  webhookImageTag: v1.22.2
   path: deploy/charts/vault-secrets-webhook
   image:
-    registry: ghcr.io/cnie-es
+    registry: docker.io
     repository: openbao/openbao
     tag: 2.5.0
   resources:
@@ -99,7 +117,7 @@ confluent_operator:
   targetRevision: 0.1351.59
   nameOverride: confluent-operator
   image:
-    registry: ghcr.io/cnie-es
+    registry: docker.io
     application: confluentinc/confluent-operator
     tag: 0.1351.59
 kafka:
@@ -109,7 +127,7 @@ kafka:
   targetRevision: v3.1.8-test.11
   chart_name: kafka
   image:
-    registry: ghcr.io/cnie-es
+    registry: docker.io
     application: confluentinc/cp-server
     tag: 8.1.1
     initImage: confluentinc/confluent-init-container
@@ -588,8 +606,8 @@ pg_operator:
   path: charts/postgres-operator
   targetRevision: v1.15.1
   image:
-    registry: ghcr.io/cnie-es
-    repository: zalando-postgres-operator
+    registry: ghcr.io
+    repository: zalando/postgres-operator
     tag: v1.15.1
 pg_cluster:
   repo_URL: https://github.com/cnie-es/edval-conector.git
@@ -598,8 +616,8 @@ pg_cluster:
   volumeSize: 20Gi
   storageClass: ''
   image:
-    registry: ghcr.io/cnie-es
-    repository: spilo-17
+    registry: ghcr.io
+    repository: zalando/spilo-17
     tag: 4.0-p2
   resources:
     requests:
@@ -624,7 +642,7 @@ signerTokenRefresh:
   enabled: false
   schedule: 0 3 * * *
   deploymentName: signer
-  image: docker.io/rancher/kubectl:v1.35.2
+  image: docker.io/alpine/kubectl:1.35.2
 adminRealmAccess: public
 adminHost: ''
 adminIngressTarget: ''
@@ -636,3 +654,20 @@ configFiles:
   realmExportPath: keycloak_realms_config/data-provider-participant-realm-export.json
   themePath: keycloak_themes/keycloak-theme-for-kc-all-other-versions.jar
   authenticatorPath: keycloak_authenticator/keycloak-authenticator-2.2.0.jar
+
+# Imagenes que no se fijan por registry/repository en los values de su subchart.
+images:
+  # ghcr.io/cnie-es ya no publica esta imagen; el espejo de ednel-rioja tiene las mismas tags.
+  simplEdc: ghcr.io/ednel-rioja/k8s-images/gaia-x-edc-simpl-edc
+# Revision de los charts de cnie-es que antes tomaban values.branch (la rama del conector), que en
+# esos repos no existe: solo tienen estos tags.
+chartRevisions:
+  contractConsumptionBe: 1.20.2-edval
+  edcConnectorAdapter: 1.14.0-edval
+# Ingress publico del data plane del EDC (public-be-<ns>), que el chart cnie-es/simpl-edc no
+# trae. Opt-in para no cambiar los despliegues existentes. Ver templates/edc-public-ingress.yaml.
+edcPublicIngress:
+  enabled: false
+  className: apisix
+  # Puerto publico del Service simpl-edc-service (values-hybrid.yaml: 19291).
+  servicePort: 19291

@@ -1,0 +1,112 @@
+# Baseline configuration defaults for the dev/sandbox environment.
+# Deploy with: helm upgrade -f values.yaml
+# When a separate environment exists (e.g. production), add values-<env>.yaml with only the
+# keys that differ and deploy with: helm upgrade -f values.yaml -f values-<env>.yaml
+
+replicaCount: 1
+
+name: signer
+nameOverride: ""
+
+image:
+  repository: code.europa.eu:4567/simpl/gaia-x-edc/poc-gaia-edc
+  # -- Image name
+  name: signer
+  tag: "latest"
+  pullPolicy: Always
+
+app:
+  workDir: /opt
+  binaryPath: ./signer
+
+# For hashicorp integration following url is /v1/kv/data/<secret_folder_name>/<secret_name> example /v1/kv/data/gaia-x/gaiax-edc-dev-catalogue-adapter-simpl-backend"
+# For OpenBao integration following url is /v1/<secret_folder_namer>/data/<secret_name> example /v1/common/data/authority01-adapter-simpl-backend
+vault:
+  address: "https://secrets.common01.sandbox-cat-dat.simpl-europe.eu"
+  role: "sandbox-cat-dat-role"
+  secretPath: "/v1/sandbox-cat-dat/data/dataprovider01-infra-adapter-simpl-backend"
+  auth:
+    kubernetesLoginPath: /v1/auth/kubernetes/login
+    kubernetesAudience: vault
+  initContainer:
+    name: vault-agent-init
+    image: alpine:3.23
+  retry:
+    intervalSeconds: 10
+  secretDataJqPath: .data.data
+  volumes:
+    secretsMountPath: /vault/secrets
+    serviceAccountTokenMountPath: /var/run/secrets/sa
+    secretsFilePath: /vault/secrets/config.txt
+
+podAnnotations: {}
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+deployment:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 150m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
+
+metrics:
+  enabled: true
+  port: 2112
+  path: /metrics
+
+probes:
+  readiness:
+    path: /readiness
+    port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    successThreshold: 2
+    failureThreshold: 2
+    timeoutSeconds: 5
+
+security:
+  runAsNonRoot: false
+  runAsUid: 0
+  runAsGid: 0
+
+service:
+  port: 8080
+  portName: http
+
+serviceAccount:
+  automountServiceAccountToken: false
+  enabled: true
+  tokenExpirationSeconds: 600
+
+signer:
+  http:
+    host: ""
+    port: 8080
+
+ingress:
+  enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: "dev-prod"
+    acme.cert-manager.io/http01-edit-in-place: "false"
+    kubernetes.io/ingress.class: nginx
+  tlsEnabled: true
+  frontendDomain: signer.sandbox-cat-dat.simpl-europe.eu
+  frontendTlsSecretName: signer-manager-tls

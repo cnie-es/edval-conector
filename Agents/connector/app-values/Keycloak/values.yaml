@@ -2,8 +2,10 @@ image:
   # c1/on-prem: Harbor (este app-values pisa el repository del chart; con registry=harbor del
   # chart, "cnie-es/keycloak" daba harbor.c0.example.invalid/ednel-rioja/k8s-images
   # /keycloak -> proyecto inexistente -> 401). Harbor c1-apps permite pull anónimo.
-  registry: ghcr.io/cnie-es
-  repository: keycloak
+  # La de Bitnami, no la oficial: las plantillas de vendor/keycloak son las del chart de Bitnami
+  # (prepare-write-dirs carga /opt/bitnami/scripts/liblog.sh y copia /opt/bitnami/keycloak/*).
+  registry: docker.io
+  repository: bitnamilegacy/keycloak
 # Chart 25.2.0: imagePullSecrets y allowInsecureImages se leen bajo global.* (no top-level).
 global:
   # c1/on-prem: SIN imagePullSecrets — Harbor c1-apps es de pull anónimo y el github-registry-secret

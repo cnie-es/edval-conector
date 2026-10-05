@@ -66,7 +66,7 @@ spec:
             - name: init-bao-volume
               mountPath: /data
           - name: 1-bao-secret
-            image: "docker.io/rancher/kubectl:v1.35.2"
+            image: "docker.io/alpine/k8s:1.35.2"
             command: [sh, -c]
             args:
               - |
@@ -135,7 +135,9 @@ spec:
 
                 echo "OpenBao is sealed. Unsealing with 3 keys from /data/init.json..."
                 # The openbao image has no jq; parse with grep/sed (extracts the first 3 keys from the b64 array)
-                KEYS=$(grep -o '"unseal_keys_b64":\[[^]]*\]' /data/init.json | sed 's/"unseal_keys_b64":\[//;s/\]//;s/"//g;s/,/ /g')
+                # bao operator init escribe el JSON en varias lineas ("unseal_keys_b64": [ ...): se aplana
+                # antes, o el grep no encuentra nada y no se aplica ninguna clave.
+                KEYS=$(tr -d ' \t\r\n' < /data/init.json | grep -o '"unseal_keys_b64":\[[^]]*\]' | sed 's/"unseal_keys_b64":\[//;s/\]//;s/"//g;s/,/ /g')
                 idx=0
                 for KEY in ${KEYS}; do
                   idx=$((idx + 1))
@@ -366,6 +368,23 @@ spec:
                     {{ . }}_edcconn="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
                 fi
                 {{- end }}
+                {{- /*
+                Participante HIBRIDO: solo anade los 3 campos propios de la 2a instancia
+                consumer de cada componente (ver secrets.yaml). Guard en _contract_consumer
+                especificamente (no en _contract, que YA existe para un hibrido via
+                kafkaParticipants.providers) para no regenerar credenciales de provider ya
+                en uso. Visto en vivo en extletest/eks-external-rioja: vault-agent-init de
+                contract-consumer se quedaba esperando para siempre un campo que nunca se
+                sembraba.
+                */}}
+                {{- range (default (list) .Values.kafkaParticipants.hybrids) }}
+                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} -field="{{ . }}_contract_consumer" {{ $.Values.cluster.namespace }}-kafka-credentials > /dev/null 2>&1; then
+                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ $.Values.cluster.namespace }}-kafka-credentials \
+                    {{ . }}_contract_consumer="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
+                    {{ . }}_contract_consumption="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
+                    {{ . }}_edcconn="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
+                fi
+                {{- end }}
                 # mailpit seeding moved to step 9-sync-mailpit-secrets so the
                 # bcrypt htpasswd lines are stored in OpenBao (avoids re-hashing
                 # on every reconcile and lets the K8s Secret derive from a
@@ -417,7 +436,7 @@ spec:
                     key: ca.crt
                     optional: true
           - name: 7-sync-kafka-users-secret
-            image: "docker.io/rancher/kubectl:v1.35.2"
+            image: "docker.io/alpine/k8s:1.35.2"
             command: [sh, -c]
             args:
               - |
@@ -446,7 +465,7 @@ spec:
           # changed. The restart is fire-and-forget so PostSync stays fast;
           # kafka rolls in the background.
           - name: 7b-rollout-kafka-on-change
-            image: "docker.io/rancher/kubectl:v1.35.2"
+            image: "docker.io/alpine/k8s:1.35.2"
             command: [sh, -c]
             args:
               - |
@@ -473,7 +492,7 @@ spec:
                   --dry-run=client -o yaml | kubectl apply -f -
                 echo "kafka restart triggered; not waiting for completion"
           - name: 8-sync-redis-secrets
-            image: "docker.io/rancher/kubectl:v1.35.2"
+            image: "docker.io/alpine/k8s:1.35.2"
             command: [sh, -c]
             args:
               - |
@@ -517,7 +536,7 @@ spec:
           # Because the K8s Secret is no longer rendered by Helm, it never
           # rotates on every reconcile.
           - name: 9-sync-mailpit-secrets
-            image: "docker.io/rancher/kubectl:v1.35.2"
+            image: "docker.io/alpine/k8s:1.35.2"
             command: [sh, -c]
             args:
               - |

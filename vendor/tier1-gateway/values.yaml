@@ -1,0 +1,335 @@
+# ------------------------------------------------------------------------------
+# Container image configuration
+# ------------------------------------------------------------------------------
+image:
+  pullPolicy: Always
+  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/tier1-gateway
+  tag: 2.16.0-rc.1379
+
+# ------------------------------------------------------------------------------
+# Application profile
+# ------------------------------------------------------------------------------
+# Defines the runtime profile of the Tier1 Gateway.
+# This value is used to:
+# - set the active Spring profile (SPRING_PROFILES_ACTIVE)
+# - control which environment variables are injected into the application
+#   (e.g. onboarding, EJBCA, identity provider URLs)
+#
+# Allowed values:
+# - authority    : enables authority-specific integrations and endpoints
+# - participant  : enables participant-specific behavior
+# - dataprovider : enables dataprovider-specific behavior
+#
+
+# ------------------------------------------------------------------------------
+# External host configuration
+# ------------------------------------------------------------------------------
+# Public Tier1 hostname used by the gateway to generate external URLs.
+# This value MUST match the hostname exposed via Ingress.
+hostT1: ""
+
+# ------------------------------------------------------------------------------
+# Ingress / TLS configuration
+# ------------------------------------------------------------------------------
+ingress:
+  # Issuer name used to request TLS certificates for the Ingress
+  issuer: ""
+
+# ------------------------------------------------------------------------------
+# Deployment configuration
+# ------------------------------------------------------------------------------
+# Internal application server port.
+server-port: &server-port 9000
+
+# Number of desired pod replicas.
+replicaCount: 1
+
+# Secrets used to pull images from private registries.
+imagePullSecrets: []
+
+# Overrides for chart-generated resource names.
+nameOverride: ""
+fullnameOverride: ""
+
+# ------------------------------------------------------------------------------
+# Service account configuration
+# ------------------------------------------------------------------------------
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created.
+  create: true
+
+  # Automatically mount the ServiceAccount token.
+  automount: true
+
+  # Annotations to add to the ServiceAccount.
+  annotations: {}
+
+  # Name of an existing ServiceAccount to use.
+  # If empty and create is true, a name is generated.
+  name: ""
+
+# ------------------------------------------------------------------------------
+# Pod metadata
+# ------------------------------------------------------------------------------
+podAnnotations: {}
+podLabels: {}
+
+# ------------------------------------------------------------------------------
+# Security contexts
+# ------------------------------------------------------------------------------
+
+# Pod-level security context.
+# Use this section to define shared security settings for all containers.
+podSecurityContext: {}
+
+# Container-level security context.
+securityContext:
+  # Drop all Linux capabilities by default.
+  capabilities:
+    drop:
+      - ALL
+
+  # Whether the container root filesystem should be read-only.
+  readOnlyRootFilesystem: false
+
+  # Enforce non-root execution.
+  runAsNonRoot: true
+  runAsUser: 1001
+
+# ------------------------------------------------------------------------------
+# Service configuration
+# ------------------------------------------------------------------------------
+service:
+  # Kubernetes Service type.
+  type: ClusterIP
+
+  # Service port exposed inside the cluster.
+  port: *server-port
+
+# ------------------------------------------------------------------------------
+# Resource management
+# ------------------------------------------------------------------------------
+# CPU and memory requests and limits for the container.
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+# ------------------------------------------------------------------------------
+# Health probes
+# ------------------------------------------------------------------------------
+# Liveness probe used to determine when the container should be restarted.
+livenessProbe:
+  httpGet:
+    path: "/actuator/health/liveness"
+    port: *server-port
+  initialDelaySeconds: 120
+  periodSeconds: 5
+  failureThreshold: 10
+
+# Readiness probe used to determine when the container is ready to receive traffic.
+readinessProbe:
+  httpGet:
+    path: "/actuator/health/readiness"
+    port: *server-port
+  initialDelaySeconds: 120
+  periodSeconds: 5
+  failureThreshold: 10
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 1
+  targetCPUUtilizationPercentage: 80
+  # Uncomment to enable memory-based autoscaling in the HorizontalPodAutoscaler
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes to be mounted into the pod.
+# Use this section to provide external configuration or secrets.
+volumes:
+  # Spring Boot configuration mounted as /config/application.yml
+  - name: spring-config
+    configMap:
+      name: tier1-gateway-spring-configmap
+
+# Example: mount a Kubernetes Secret as an additional volume.
+# Uncomment and adapt if your deployment requires secrets mounted as files.
+#
+# - name: extra-secret
+#   secret:
+#     secretName: my-secret-name
+#     optional: false
+
+# Additional volume mounts for the container.
+# Used to mount configuration or secret volumes into the filesystem.
+volumeMounts:
+  # Mount Spring Boot configuration.
+  # Files under /config are automatically picked up by Spring Boot.
+  - name: spring-config
+    mountPath: /config/
+
+# Environment variables injected from external ConfigMaps or Secrets.
+envFrom:
+  # Application environment variables (non-sensitive configuration).
+  - configMapRef:
+      name: tier1-gateway-env-configmap
+
+# ------------------------------------------------------------------------------
+# Internal service endpoints
+# ------------------------------------------------------------------------------
+# Base URLs of internal microservices used by the Tier1 Gateway.
+# These services are expected to be reachable inside the Kubernetes cluster
+# via the cluster DNS (service-name.namespace.svc.cluster.local).
+
+usersRolesUrl: http://users-roles.{{ .Release.Namespace }}.svc.cluster.local:8080
+securityAttributesProviderUrl: http://security-attributes-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
+keycloakUrl: http://keycloak.{{ .Release.Namespace }}.svc.cluster.local
+onboardingUrl: http://onboarding.{{ .Release.Namespace }}.svc.cluster.local:8080
+ejbcaUrl: http://ejbca-community-helm.{{ .Release.Namespace }}.svc.cluster.local:30080
+identityProviderUrl: http://identity-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
+authenticationProviderUrl: http://authentication-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
+consentManagementUrl: http://consent-management-be.{{ .Release.Namespace }}.svc.cluster.local:8080
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# ------------------------------------------------------------------------------
+# CORS configuration
+# ------------------------------------------------------------------------------
+# CORS settings applied by the gateway for incoming HTTP requests.
+# These values are mapped to Spring Boot CORS configuration properties.
+
+cors:
+  # List of HTTP headers allowed in CORS requests.
+  # This value is injected as an environment variable and parsed by the application.
+  allowedHeaders: >
+    Access-Control-Allow-Headers,
+    Access-Control-Allow-Credentials,
+    Access-Control-Allow-Origin,
+    Access-Control-Allow-Methods,
+    Keep-Alive,
+    User-Agent,
+    Content-Type,
+    Authorization,
+    Tenant,
+    Channel,
+    Platform,
+    Set-Cookie,
+    geolocation,
+    x-mobility-mode,
+    device,
+    Cache-Control,
+    X-Request-With,
+    Accept,
+    Origin
+
+  # Comma-separated list of allowed origins.
+  # Example: https://example.com,https://another.example.com
+  allowOrigin: ""
+
+# ------------------------------------------------------------------------------
+# Spring Boot application configuration
+# ------------------------------------------------------------------------------
+# The appConfig section contains Spring Boot configuration properties and is
+# rendered into /config/application.yml via a Kubernetes ConfigMap.
+#
+# The commented configuration below is PROVIDED FOR REFERENCE ONLY and MUST NOT
+# be considered default or active configuration.
+#
+# Uncommenting or copying these examples is NOT required for a standard
+# deployment and should be done only with a clear understanding of the
+# corresponding Configuration Properties.
+#
+# For a complete and documented example, refer to:
+# - values.example.yaml or application-example.yml
+# - the official installation guide
+#
+# ------------------------------------------------------------------------------
+# Example configuration (DO NOT USE AS-IS)
+#
+# appConfig:
+#   spring:
+#     profiles:
+#       active: <your-active-profiles>
+#   springdoc:
+#     swagger-ui:
+#       urls:
+#         - url: /serviceApi/v3/api-docs
+#           name: Service Name open API
+#
+#   external-routes:
+#     spring-route-definitions:
+#       - id: service-name
+#         uri: service-url
+#         predicates:
+#           - Path=/serviceApi/**
+#         filters:
+#           - StripPrefix=1
+#
+#     logging:
+#       business:
+#         - method: POST
+#           path: /serviceApi/endpoint
+#           config:
+#             operations:
+#               - BUSINESS_ACTION_NAME
+#     public-urls:
+#       - method: GET
+#         path: "/v1/info/version"
+#     denied-urls:
+#       - method: GET
+#         path: "/path/to/deny"
+#     rbac:
+#       - method: GET
+#         path: "/path/to/protect"
+#         roles:
+#           - ROLE
+#       - path: "/other/path/to/protect"
+#         roles:
+#           - ROLE
+#
+#   microservices-info:
+#     microservices:
+#       - name: users-roles
+#         internalUrl: http://localhost:8081/v1
+#         detailUrl: https://<t1-host>/userApi/v1
+#       - name: sap
+#         internalUrl: http://localhost:8081/v1
+#         detailUrl: https://<t1-host>/sapApi/v1
+#       - name: identity-provider
+#         internalUrl: http://localhost:8081/v1
+#         detailUrl: https://<t1-host>/identityManagementApi/v1
+#       - name: onboarding
+#         internalUrl: http://localhost:8081/v1
+#         detailUrl: https://<t1-host>/onboardingApi/v1
+#       - name: authentication-provider
+#         internalUrl: http://localhost:8081/v1
+#         detailUrl: https://<t1-host>/authApi/v1
+#
+#   management:
+#     tracing:
+#       sampling:
+#         probability: [MANAGEMENT_TRACING_SAMPLING_PROBABILITY]
+#     otlp:
+#       tracing:
+#         endpoint: [MANAGEMENT_OTLP_TRACING_ENDPOINT]
+#
+#   jwt-configuration:
+#     primary:
+#       realm: <your-realm-name>
+#     applicant: # Applicant realm configuration, uncomment only for authority deployment.
+#       realm: <applicant-realm-name>
+
+
+# ------------------------------------------------------------------------------
+# Development settings
+# ------------------------------------------------------------------------------
+# Enables development-specific behavior (e.g. local logging configuration).
+# Should be set to false in production environments.
+devMode: false
