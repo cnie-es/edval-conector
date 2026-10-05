@@ -1,7 +1,7 @@
 SERVICE_PORT: 8084
 CONTAINER_PORT: 8084
 DEPLOYMENT_IMAGE_PULL_POLICY: Always
-REPOSITORY: "ghcr.io/ednel-rioja/k8s-images/gaia-x-edc-simpl-edc"
+REPOSITORY: "ghcr.io/cnie-es/gaia-x-edc-simpl-edc"
 TAG: "35a3af2"
 
 ingress:
