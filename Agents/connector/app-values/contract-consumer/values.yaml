@@ -2,7 +2,7 @@ deployment:
   # Repo/nombre de la imagen del contract (override del subchart). El tag se inyecta
   # desde imagesTags.contract (master values) via application.yaml -> deployment.image.tag.
   image:
-    artifact: ghcr.io/ednel-rioja/k8s-images/contract-billing-contract
+    artifact: ghcr.io/cnie-es/contract
   replicas: 1
   mode: CONSUMER
   kafka:
