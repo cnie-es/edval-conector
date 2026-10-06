@@ -27,7 +27,7 @@ change the deployment chart.
 | | |
 |---|---|
 | Modified by | EDNEL-RIOJA project team, for CNIE-ES |
-| Part of | `cnie-c1-apps/simpl-participant-connector-dist` (no separate public repository; vendored inline, by agreement, because this directory is a chart, not an application component published through the usual EDVAL component pipeline) |
+| Part of | https://github.com/cnie-es/edval-conector (no separate public repository; vendored inline, by agreement, because this directory is a chart, not an application component published through the usual EDVAL component pipeline) |
 | Date of modification | 2026-10-02 |
 
 The modifications are licensed under the **EUPL-1.2**, the same licence as the original work.

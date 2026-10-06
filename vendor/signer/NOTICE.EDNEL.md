@@ -27,7 +27,7 @@ EUPL-1.2 like the rest of SIMPL-open. It has been replaced with the correct EUPL
 | | |
 |---|---|
 | Modified by | EDNEL-RIOJA project team, for the EDVAL external-participant connector (CNIE-ES) |
-| Repository of this derivative work | `cnie-c1-apps/simpl-participant-connector-dist` (Gitea), mirrored to https://github.com/cnie-es/edval-conector |
+| Repository of this derivative work | https://github.com/cnie-es/edval-conector |
 | Date of modification | 2026-10-02 |
 
 The modifications are licensed under the **EUPL-1.2**, the same licence as the original work.
