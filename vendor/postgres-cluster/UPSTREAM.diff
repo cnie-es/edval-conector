@@ -1,0 +1,239 @@
+# Diff contra el baseline upstream
+
+Compara el chart publico `charts/` de
+https://code.europa.eu/simpl/simpl-open/data/supporting-data-services/persistence/postgres/postgres-cluster-chart
+en el tag `v1.1.0` (commit corto `feaaa1593267`, 2025-12-18, segun la API de GitLab) contra
+`vendor/postgres-cluster/charts/` tal y como esta hoy en este repo. Generado con:
+
+    diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts \
+      upstream/charts vendor/postgres-cluster/charts
+
+---
+
+diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstream/charts vendor/postgres-cluster/charts
+--- upstream/charts
++++ vendor/postgres-cluster/charts
+@@ -1,2 +1,2 @@
+ name: pg-cluster
+-version: ${PROJECT_RELEASE_VERSION}
++version: 1.1.0
+diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstream/charts/templates/pg-cluster.yaml vendor/postgres-cluster/charts/templates/pg-cluster.yaml
+--- upstream/charts/templates/pg-cluster.yaml
++++ vendor/postgres-cluster/charts/templates/pg-cluster.yaml
+@@ -4,8 +4,12 @@
+   name: {{ .Values.name }}
+ spec:
+   teamId: "acid"
++  dockerImage: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+   volume:
+     size: {{ .Values.volumeSize }}
++    {{- if .Values.storageClass }}
++    storageClass: {{ .Values.storageClass }}
++    {{- end }}
+   numberOfInstances: {{ .Values.instances }}
+   resources:
+     {{- toYaml $.Values.resources | nindent 4 }}
+@@ -15,101 +19,137 @@
+     - superuser
+     - createdb
+     {{- range .Values.authorityList }}
+-    {{ . }}_keycloak:
++    {{- $db := . | replace "-" "_" }}
++    {{ $db }}_drupal:
++    - superuser
++    - createdb
++    {{ $db }}_keycloak:
+     - superuser
+     - createdb
+-    {{ . }}_ejbca:
++    {{ $db }}_ejbca:
+     - superuser
+     - createdb
+-    {{ . }}_securityattributesprovider:
++    {{ $db }}_securityattributesprovider:
+     - superuser
+     - createdb
+-    {{ . }}_usersroles:
++    {{ $db }}_usersroles:
+     - superuser
+     - createdb
+-    {{ . }}_onboarding:
++    {{ $db }}_onboarding:
+     - superuser
+     - createdb
+-    {{ . }}_identityprovider:
++    {{ $db }}_identityprovider:
+     - superuser
+     - createdb
+-    {{ . }}_authenticationprovider:
++    {{ $db }}_authenticationprovider:
+     - superuser
+     - createdb
+-    {{ . }}_fcservice:
++    {{ $db }}_fcservice:
++    - superuser
++    - createdb
++    {{ $db }}_onlyoffice:
++    - superuser
++    - createdb
++    {{ $db }}_gnoss_acid:
+     - superuser
+     - createdb
+     {{- end }}
+     {{- range .Values.consumerList }}
+-    {{ . }}_keycloak:
++    {{- $db := . | replace "-" "_" }}
++    {{ $db }}_keycloak:
++    - superuser
++    - createdb
++    {{ $db }}_usersroles:
+     - superuser
+     - createdb
+-    {{ . }}_usersroles:
++    {{ $db }}_authenticationprovider:
+     - superuser
+     - createdb
+-    {{ . }}_authenticationprovider:
++    {{ $db }}_edc:
+     - superuser
+     - createdb
+-    {{ . }}_edc:
++    {{ $db }}_contract:
+     - superuser
+     - createdb
+-    {{ . }}_contract:
++    # contract-consumer: 2a instancia de Contract Manager BE (modo CONSUMER) para el
++    # agente hibrido. Anadida 2026-10-02: application.yaml/openbao-seeder ya la conocian,
++    # este chart no -- el usuario/base nunca se creaba y el vault-agent-init de
++    # contract-consumer se quedaba esperando para siempre un secreto que el seeder jamas
++    # podia sembrar (sin usuario de postgres que sembrar).
++    {{ $db }}_contract_consumer:
+     - superuser
+     - createdb
+     {{- end }}
+     {{- range .Values.providerList }}
+-    {{ . }}_keycloak:
++    {{- $db := . | replace "-" "_" }}
++    {{ $db }}_keycloak:
++    - superuser
++    - createdb
++    {{ $db }}_usersroles:
+     - superuser
+     - createdb
+-    {{ . }}_usersroles:
++    {{ $db }}_authenticationprovider:
+     - superuser
+     - createdb
+-    {{ . }}_authenticationprovider:
++    {{ $db }}_edc:
+     - superuser
+     - createdb
+-    {{ . }}_edc:
++    {{ $db }}_contract:
+     - superuser
+     - createdb
+-    {{ . }}_contract:
++    # contract-consumer: 2a instancia de Contract Manager BE (modo CONSUMER) para el
++    # agente hibrido. Anadida 2026-10-02: application.yaml/openbao-seeder ya la conocian,
++    # este chart no -- el usuario/base nunca se creaba y el vault-agent-init de
++    # contract-consumer se quedaba esperando para siempre un secreto que el seeder jamas
++    # podia sembrar (sin usuario de postgres que sembrar).
++    {{ $db }}_contract_consumer:
+     - superuser
+     - createdb
+-    {{ . }}_infrabe:
++    {{ $db }}_infrabe:
+     - superuser
+     - createdb
+-    {{ . }}_dagster:
++    {{ $db }}_dagster:
+     - superuser
+     - createdb
+     {{- end }}
+   #databases: name->owner
+   databases:
+     {{- range .Values.authorityList }}
+-    {{ . }}_keycloak: {{ . }}_keycloak
+-    {{ . }}_ejbca: {{ . }}_ejbca
+-    {{ . }}_securityattributesprovider: {{ . }}_securityattributesprovider
+-    {{ . }}_usersroles: {{ . }}_usersroles
+-    {{ . }}_onboarding: {{ . }}_onboarding
+-    {{ . }}_identityprovider: {{ . }}_identityprovider
+-    {{ . }}_authenticationprovider: {{ . }}_authenticationprovider
+-    {{ . }}_fcservice: {{ . }}_fcservice
++    {{- $db := . | replace "-" "_" }}
++    {{ $db }}_keycloak: {{ $db }}_keycloak
++    {{ $db }}_ejbca: {{ $db }}_ejbca
++    {{ $db }}_securityattributesprovider: {{ $db }}_securityattributesprovider
++    {{ $db }}_usersroles: {{ $db }}_usersroles
++    {{ $db }}_drupal: {{ $db }}_drupal
++    {{ $db }}_onboarding: {{ $db }}_onboarding
++    {{ $db }}_identityprovider: {{ $db }}_identityprovider
++    {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
++    {{ $db }}_fcservice: {{ $db }}_fcservice
++    {{ $db }}_onlyoffice: {{ $db }}_onlyoffice
++    {{ $db }}_gnoss_acid: {{ $db }}_gnoss_acid
+     {{- end }}
+     {{- range .Values.consumerList }}
+-    {{ . }}_keycloak: {{ . }}_keycloak
+-    {{ . }}_usersroles: {{ . }}_usersroles
+-    {{ . }}_authenticationprovider: {{ . }}_authenticationprovider
+-    {{ . }}_edc: {{ . }}_edc
+-    {{ . }}_contract: {{ . }}_contract
++    {{- $db := . | replace "-" "_" }}
++    {{ $db }}_keycloak: {{ $db }}_keycloak
++    {{ $db }}_usersroles: {{ $db }}_usersroles
++    {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
++    {{ $db }}_edc: {{ $db }}_edc
++    {{ $db }}_contract: {{ $db }}_contract
++    {{ $db }}_contract_consumer: {{ $db }}_contract_consumer
+     {{- end }}
+     {{- range .Values.providerList }}
+-    {{ . }}_keycloak: {{ . }}_keycloak
+-    {{ . }}_usersroles: {{ . }}_usersroles
+-    {{ . }}_authenticationprovider: {{ . }}_authenticationprovider
+-    {{ . }}_edc: {{ . }}_edc
+-    {{ . }}_contract: {{ . }}_contract
+-    {{ . }}_infrabe: {{ . }}_infrabe
+-    {{ . }}_dagster: {{ . }}_dagster
++    {{- $db := . | replace "-" "_" }}
++    {{ $db }}_keycloak: {{ $db }}_keycloak
++    {{ $db }}_usersroles: {{ $db }}_usersroles
++    {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
++    {{ $db }}_edc: {{ $db }}_edc
++    {{ $db }}_contract: {{ $db }}_contract
++    {{ $db }}_contract_consumer: {{ $db }}_contract_consumer
++    {{ $db }}_infrabe: {{ $db }}_infrabe
++    {{ $db }}_dagster: {{ $db }}_dagster
+     {{- end }}
+     postgres: postgres
+   postgresql:
+     version: "17"
+-    parameters:
+-      max_connections: "{{ .Values.maxConnections }}"
+\ No newline at end of file
++    parameters:
++      max_connections: "{{ .Values.maxConnections }}"
+diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstream/charts/values.yaml vendor/postgres-cluster/charts/values.yaml
+--- upstream/charts/values.yaml
++++ vendor/postgres-cluster/charts/values.yaml
+@@ -0,0 +1,12 @@
+ name: pg-cluster
+ volumeSize: 20Gi
++storageClass: ""
+ instances: 3
+ maxConnections: 500
++image:
++  registry: ghcr.io
++  repository: zalando/spilo-17
++  tag: 4.0-p2
+ resources:
+   requests:
+     cpu: 10m
+@@ -14,4 +19,4 @@
+
+ consumerList: {}
+
+-providerList: {}
+\ No newline at end of file
++providerList: {}

@@ -1,0 +1,1693 @@
+# Diff respecto al upstream (SIMPL-open openbao-init-chart)
+
+Compara el chart publico `openbao-init-chart` (code.europa.eu, proyecto 2724,
+simpl/simpl-contributions/infratex/simpl-open/security/access-control-and-trust/encryption/openbao/openbao-init-chart,
+tag v1.1.1, commit 0d7b54f602f9c1ae8e76790bd9099e77e0b7213f) contra el chart REALMENTE
+desplegado por el conector: vendor/openbao-init/charts/ (el que usa
+embedded-application-openbao.yaml via openbao_init.path, default "charts").
+
+NOTA: este directorio tiene ademas una SEGUNDA copia, mas antigua, en
+vendor/openbao-init/templates/ (fuera de charts/) que tambien deriva del mismo
+upstream pero diverge de forma distinta - ver NOTICE.EDNEL.md, seccion
+'Aviso: posible copia obsoleta sin usar'.
+
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -1,2 +1,3 @@
+ name: openbao-init
+-version: ${PROJECT_RELEASE_VERSION}
++version: 1.4.4
++description: OpenBao initialization and configuration with transit auto-unseal support, automatic Kubernetes auth configuration, and periodic sync via CronJob
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -0,0 +1,55 @@
++{{- define "redpanda.password" -}}
++{{- if not (get .Values "redpandaGeneratedPassword") -}}
++{{- $password := randAlphaNum 16 | nospace -}}
++{{- $_ := set .Values "redpandaGeneratedPassword" $password -}}
++{{- end -}}
++{{- get .Values "redpandaGeneratedPassword" -}}
++{{- end -}}
++
++{{- define "pgadmin.password" -}}
++{{- if not (get .Values "pgadminGeneratedPassword") -}}
++{{- $password := randAlphaNum 16 | nospace -}}
++{{- $_ := set .Values "pgadminGeneratedPassword" $password -}}
++{{- end -}}
++{{- get .Values "pgadminGeneratedPassword" -}}
++{{- end -}}
++
++{{- define "rediscommander.password" -}}
++{{- if not (get .Values "redisCommanderGeneratedPassword") -}}
++{{- $password := randAlphaNum 16 | nospace -}}
++{{- $_ := set .Values "redisCommanderGeneratedPassword" $password -}}
++{{- end -}}
++{{- get .Values "redisCommanderGeneratedPassword" -}}
++{{- end -}}
++
++{{- define "redis.password" -}}
++{{- if not (get .Values "redisGeneratedPassword") -}}
++{{- $password := randAlphaNum 16 | nospace -}}
++{{- $_ := set .Values "redisGeneratedPassword" $password -}}
++{{- end -}}
++{{- get .Values "redisGeneratedPassword" -}}
++{{- end -}}
++
++{{- define "redpandakafkauser.password" -}}
++{{- if not (get .Values "redpandaKafkaGeneratedPassword") -}}
++{{- $password := randAlphaNum 16 | nospace -}}
++{{- $_ := set .Values "redpandaKafkaGeneratedPassword" $password -}}
++{{- end -}}
++{{- get .Values "redpandaKafkaGeneratedPassword" -}}
++{{- end -}}
++
++{{- define "notificationkafkauser.password" -}}
++{{- if not (get .Values "notificationKafkaGeneratedPassword") -}}
++{{- $password := randAlphaNum 16 | nospace -}}
++{{- $_ := set .Values "notificationKafkaGeneratedPassword" $password -}}
++{{- end -}}
++{{- get .Values "notificationKafkaGeneratedPassword" -}}
++{{- end -}}
++
++{{- define "icmskafkauser.password" -}}
++{{- if not (get .Values "icmsKafkaGeneratedPassword") -}}
++{{- $password := randAlphaNum 16 | nospace -}}
++{{- $_ := set .Values "icmsKafkaGeneratedPassword" $password -}}
++{{- end -}}
++{{- get .Values "icmsKafkaGeneratedPassword" -}}
++{{- end -}}
+\ No newline at end of file
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -1,90 +0,0 @@
+-apiVersion: batch/v1
+-kind: CronJob
+-metadata:
+-  name: watch-openbao-replicas
+-spec:
+-  schedule: "*/4 * * * *"  # every four minutes
+-  successfulJobsHistoryLimit: 1
+-  concurrencyPolicy: Forbid
+-  jobTemplate:
+-    spec:
+-      template:
+-        spec:
+-          restartPolicy: OnFailure
+-          serviceAccountName: openbao-{{ .Values.cluster.namespace }}-svc-account
+-          automountServiceAccountToken: false
+-          securityContext: 
+-            seccompProfile:
+-              type: RuntimeDefault
+-          volumes:
+-          - name: kube-api-token
+-            projected:
+-              defaultMode: 420
+-              sources:
+-              - serviceAccountToken:
+-                  path: token
+-                  expirationSeconds: 3600
+-              - configMap:
+-                  name: kube-root-ca.crt
+-                  items:
+-                  - key: ca.crt
+-                    path: ca.crt
+-              - downwardAPI:
+-                  items:
+-                  - fieldRef:
+-                      fieldPath: metadata.namespace
+-                    path: namespace
+-          containers:
+-            - name: watcher
+-              image: alpine/kubectl
+-              volumeMounts:
+-              - name: kube-api-token
+-                mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+-              command:
+-                - /bin/sh
+-                - -c
+-                - |
+-                  COUNT=$(kubectl get jobs \
+-                    -n {{ .Values.cluster.namespace }} \
+-                    -o name \
+-                    | grep -c reinit)
+-
+-                  if ! kubectl get statefulset openbao-{{ .Values.cluster.namespace }} \
+-                    -n {{ .Values.cluster.namespace }} >/dev/null 2>&1; then
+-
+-                    echo "StatefulSet openbao-{{ .Values.cluster.namespace }} not found"
+-                    echo "Skipping reinit trigger"
+-                    exit 0
+-
+-                  fi
+-
+-                  READY=$(kubectl get statefulset openbao-{{ .Values.cluster.namespace }} \
+-                    -n {{ .Values.cluster.namespace }} \
+-                    -o jsonpath='{.status.readyReplicas}')
+-
+-                  READY=${READY:-0}
+-
+-                  echo "Ready replicas=$READY"
+-                  echo "Expected replicas={{ .Values.replicas }}"
+-
+-                  if [ "$READY" != "{{ .Values.replicas }}" ]; then
+-
+-                    COUNT=$(kubectl get jobs \
+-                      -n {{ .Values.cluster.namespace }} \
+-                      -o name 2>/dev/null \
+-                      | grep -c 'job.batch/reinit-')
+-
+-                    if [ "$COUNT" -gt 0 ]; then
+-                      echo "Reinit job already exists, skipping"
+-                      exit 0
+-                    fi
+-
+-                    echo "Changed: {{ .Values.replicas }} -> $READY, triggering job..."
+-
+-                    kubectl create job reinit-$(date +%s) \
+-                      -n {{ .Values.cluster.namespace }} \
+-                      --from=cronjob/openbao-init
+-
+-                  else
+-                    echo "Replica count matches"
+-                  fi
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -1,120 +1,1155 @@
+ apiVersion: batch/v1
+ kind: CronJob
+ metadata:
+-  name: openbao-init
++  name: openbao-init-{{ .Values.cluster.namespace }}
+ spec:
+-  schedule: "0 0 1 1 *"
+-  suspend: false
++  schedule: "0 * * * *"
++  suspend: true
+   successfulJobsHistoryLimit: 1
++  failedJobsHistoryLimit: 1
++  concurrencyPolicy: Forbid
+   jobTemplate:
+     spec:
+-      ttlSecondsAfterFinished: 15
+       template:
++        metadata:
++          labels:
++            security.banzaicloud.io/mutate: "skip"
++            security.bank-vaults.io/mutate: "skip"
+         spec:
+           serviceAccountName: openbao-{{ .Values.cluster.namespace }}-svc-account
++          imagePullSecrets:
++            - name: github-registry-secret
+           initContainers:
+           - name: 0-init
+-            image: "quay.io/openbao/openbao:{{ .Values.imageTag }}"
++            image: "docker.io/openbao/openbao:2.4.3"
+             command: [sh, -c]
+             args:
+               - |
+-                until wget --spider --quiet --timeout=10 --tries=1 --no-check-certificate $VAULT_ADDR 2>/dev/null; do
++                # Wait for OpenBao API to respond (works even when sealed)
++                until wget -O /dev/null --quiet --timeout=10 --tries=1 --no-check-certificate $VAULT_ADDR/v1/sys/seal-status 2>/dev/null; do
+                   echo "Waiting for OpenBao to be accessible..."
+                   sleep 5
+                 done
+ 
+-                bao operator init -format json >> /data/init.json || {
+-                  echo "Init failed (possibly already initialized), continuing..."
+-                }
++                # Skip init if openbao reports already initialized
++                INITIALIZED=$(wget -qO- --no-check-certificate $VAULT_ADDR/v1/sys/seal-status 2>/dev/null | grep -o '"initialized":true' || true)
++
++                if [ -n "$INITIALIZED" ]; then
++                  echo "OpenBao already initialized; skipping init"
++                  if [ ! -s /data/init.json ]; then
++                    echo "WARNING: openbao initialized but /data/init.json missing — unseal/root token cannot be recovered automatically"
++                  fi
++                  exit 0
++                fi
++
++                if [ -s /data/init.json ]; then
++                  echo "init.json already present from a previous run; skipping init"
++                  exit 0
++                fi
++
++                # Fresh init: capture stdout (the JSON) into init.json
++                TMP=/data/init.json.tmp
++                if bao operator init -format json > "$TMP"; then
++                  mv "$TMP" /data/init.json
++                  echo "OpenBao initialized successfully"
++                else
++                  echo "ERROR: bao operator init failed"
++                  rm -f "$TMP"
++                  exit 1
++                fi
+             env:
+               - name: VAULT_ADDR
+-                value: http://openbao-{{ .Values.namespaceTag }}-0.openbao-{{ .Values.namespaceTag }}-internal:8200
++                value: http://openbao-{{ .Values.cluster.namespace }}:8200
+               - name: VAULT_SKIP_VERIFY
+                 value: "true"
+             volumeMounts:
+             - name: init-bao-volume
+               mountPath: /data
+           - name: 1-bao-secret
+-            image: "alpine/kubectl:latest"
++            image: "docker.io/alpine/k8s:1.35.2"
+             command: [sh, -c]
+             args:
+               - |
+-                if [ -f /etc/alpine-release ]; then apk add jq; fi
++                set -e
++                if [ -f /etc/alpine-release ]; then apk add --no-cache jq; fi
++
++                timeout 300 sh -c 'while [ ! -f /data/init.json ] || [ ! -s /data/init.json ]; do sleep 5; done' || {
++                  echo "ERROR: /data/init.json never appeared or is empty"
++                  exit 1
++                }
+ 
+-                timeout 300 sh -c 'while [ ! -f /data/init.json ]; do sleep 5; done' || exit 1
++                # Validate the file contains real init data (not just the failure message)
++                if ! jq -e '.unseal_keys_b64 | length >= 5' /data/init.json > /dev/null 2>&1; then
++                  echo "ERROR: /data/init.json does not contain 5 unseal_keys_b64; openbao may have been initialized previously without persisting keys here"
++                  exit 1
++                fi
+ 
+-                UNSEAL_KEYS=$(cat /data/init.json | jq -r '.unseal_keys_b64[]')
+-                ROOT_TOKEN=$(cat /data/init.json | jq -r '.root_token')
++                KEY1=$(jq -r '.unseal_keys_b64[0]' /data/init.json)
++                KEY2=$(jq -r '.unseal_keys_b64[1]' /data/init.json)
++                KEY3=$(jq -r '.unseal_keys_b64[2]' /data/init.json)
++                KEY4=$(jq -r '.unseal_keys_b64[3]' /data/init.json)
++                KEY5=$(jq -r '.unseal_keys_b64[4]' /data/init.json)
++                ROOT_TOKEN=$(jq -r '.root_token' /data/init.json)
+ 
+-                # Create secret with unseal keys
+-                echo "y" | kubectl delete secret secrets-unseal-keys -i
++                # Idempotent apply via dry-run + apply -f
+                 kubectl create secret generic secrets-unseal-keys \
+-                  --from-literal=key1=$(echo $UNSEAL_KEYS | cut -d' ' -f1) \
+-                  --from-literal=key2=$(echo $UNSEAL_KEYS | cut -d' ' -f2) \
+-                  --from-literal=key3=$(echo $UNSEAL_KEYS | cut -d' ' -f3) \
+-                  --from-literal=key4=$(echo $UNSEAL_KEYS | cut -d' ' -f4) \
+-                  --from-literal=key5=$(echo $UNSEAL_KEYS | cut -d' ' -f5) || true
++                  --from-literal=key1="${KEY1}" \
++                  --from-literal=key2="${KEY2}" \
++                  --from-literal=key3="${KEY3}" \
++                  --from-literal=key4="${KEY4}" \
++                  --from-literal=key5="${KEY5}" \
++                  --dry-run=client -o yaml | kubectl apply -f -
+ 
+-                # Create secret with root token
+-                echo "y" | kubectl delete secret secrets-root-token -i
+                 kubectl create secret generic secrets-root-token \
+-                  --from-literal=token=$ROOT_TOKEN || true
++                  --from-literal=token="${ROOT_TOKEN}" \
++                  --dry-run=client -o yaml | kubectl apply -f -
+             volumeMounts:
+             - name: init-bao-volume
+               mountPath: /data
+-          - name: 2-unseal-leader
+-            image: "quay.io/openbao/openbao:{{ .Values.imageTag }}"
++          - name: 2-unseal
++            image: "docker.io/openbao/openbao:2.4.3"
+             command: [sh, -c]
+             args:
+               - |
+-                until wget --spider --quiet --timeout=10 --tries=1 --no-check-certificate $VAULT_ADDR 2>/dev/null; do
+-                  echo "Waiting for OpenBao to be accessible..."
+-                  sleep 5
++                set -e
++
++                # Wait for OpenBao API to respond (works while sealed too)
++                until wget -qO- --no-check-certificate "${VAULT_ADDR}/v1/sys/seal-status" > /dev/null 2>&1; do
++                  echo "Waiting for OpenBao API..."
++                  sleep 3
+                 done
+-                
+-                bao operator unseal $key1
+-                bao operator unseal $key2
+-                bao operator unseal $key3
++
++                # bao status exits non-zero when sealed; ignore the exit code
++                STATUS=$(bao status -format=json 2>/dev/null || true)
++                SEALED=$(echo "${STATUS}" | grep -o '"sealed":[^,}]*' | grep -o 'true\|false' || echo true)
++
++                if [ "${SEALED}" = "false" ]; then
++                  echo "OpenBao already unsealed, nothing to do."
++                  exit 0
++                fi
++
++                if [ ! -s /data/init.json ]; then
++                  echo "ERROR: /data/init.json missing; cannot unseal"
++                  exit 1
++                fi
++
++                echo "OpenBao is sealed. Unsealing with 3 keys from /data/init.json..."
++                # The openbao image has no jq; parse with grep/sed (extracts the first 3 keys from the b64 array)
++                # bao operator init escribe el JSON en varias lineas ("unseal_keys_b64": [ ...): se aplana
++                # antes, o el grep no encuentra nada y no se aplica ninguna clave.
++                KEYS=$(tr -d ' \t\r\n' < /data/init.json | grep -o '"unseal_keys_b64":\[[^]]*\]' | sed 's/"unseal_keys_b64":\[//;s/\]//;s/"//g;s/,/ /g')
++                idx=0
++                for KEY in ${KEYS}; do
++                  idx=$((idx + 1))
++                  [ ${idx} -gt 3 ] && break
++                  OUT=$(bao operator unseal -format=json "${KEY}" || true)
++                  STILL_SEALED=$(echo "${OUT}" | grep -o '"sealed":[^,}]*' | grep -o 'true\|false' || echo true)
++                  echo "Applied key${idx}, sealed=${STILL_SEALED}"
++                  if [ "${STILL_SEALED}" = "false" ]; then
++                    echo "OpenBao unsealed."
++                    exit 0
++                  fi
++                done
++
++                echo "ERROR: OpenBao still sealed after applying 3 keys"
++                exit 1
+             env:
+               - name: VAULT_ADDR
+-                value: http://openbao-{{ .Values.namespaceTag }}-0.openbao-{{ .Values.namespaceTag }}-internal:8200
+-              - name: VAULT_SKIP_VERIFY
+-                value: "true"
++                value: http://openbao-{{ .Values.cluster.namespace }}:8200
++            volumeMounts:
++            - name: init-bao-volume
++              mountPath: /data
++              readOnly: true
++          - name: 3-kv-secretengine
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                bao secrets enable -path={{ .Values.secrets.secretEngine }} -version=2 kv || true
++                bao secrets enable -path=secret -version=2 kv || true
++            env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
++              - name: VAULT_ADDR
++                value: http://openbao-{{ .Values.cluster.namespace }}:8200
++          - name: 4-transit-secretengine
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                bao secrets enable -path=transit/simpl transit || true
++                bao write transit/simpl/keys/gaia-x-key1 type=ed25519 || true
++            env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
++              - name: VAULT_ADDR
++                value: http://openbao-{{ .Values.cluster.namespace }}:8200
++          - name: 5-kubernetes-policy-role
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                # `simpl-secrets-policy` is the policy attached to the role
++                # every participant SA logs into. It needs:
++                #   - full access to its own KV engine ({{ .Values.secrets.secretEngine }}/*)
++                #   - access to the shared transit engine (transit/simpl/*) so
++                #     the simpl-signer can read/sign with the gaia-x-key1 key
++                #     created in step 4-transit-secretengine. Without this the
++                #     signer's hashicorp-vault-provider plugin gets a 403 on
++                #     the key and wraps it as
++                #     "error getting signing key: unsupported operation".
++                #   - read on sys/mounts (and the UI internal equivalent) so
++                #     the plugin can introspect the engine type at the mount.
++                bao policy write {{ .Values.secrets.secretEngine }}-policy - <<EOF
++                path "{{ .Values.secrets.secretEngine }}/*" {
++                  capabilities = ["create", "read", "update", "delete", "list"]
++                }
++                path "transit/simpl/*" {
++                  capabilities = ["create", "read", "update", "delete", "list"]
++                }
++                path "sys/mounts" {
++                  capabilities = ["read", "list"]
++                }
++                path "sys/mounts/*" {
++                  capabilities = ["read", "list"]
++                }
++                path "sys/internal/ui/mounts" {
++                  capabilities = ["read", "list"]
++                }
++                path "sys/internal/ui/mounts/*" {
++                  capabilities = ["read", "list"]
++                }
++                EOF
++    
++                bao policy write eso-read-secrets - <<EOF
++                path "auth/kubernetes/login" {
++                  capabilities = ["update"]
++                }
++                path "secret/data/cloud-accounts/*" {
++                  capabilities = ["create", "read", "update", "list"]
++                }
++                path "secret/data/cloud-accounts/*/*" {
++                  capabilities = ["create", "read", "update", "list"]
++                }
++                EOF
++    
++                {{ $authorities := default (list) .Values.agentList.authorities }}
++                {{ $providers := default (list) .Values.agentList.providers }}
++                {{ $consumers := default (list) .Values.agentList.consumers }}
++                {{ $namespace := default "default-namespace" .Values.cluster.namespace }}
++    
++                # Enable Kubernetes auth
++                bao auth enable kubernetes || true
++    
++                # Get CA cert and host from the pod
++                K8S_CA_CERT=$(cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)
++                K8S_HOST="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
++
++                # Use long-lived token from openbao-sa-token secret for token review
++                # (the pod's projected token lacks system:auth-delegator permissions)
++                SA_TOKEN=$(cat /var/run/secrets/openbao-sa/token)
++
++                # Configure Kubernetes auth backend with long-lived token
++                bao write auth/kubernetes/config \
++                  kubernetes_host="$K8S_HOST" \
++                  kubernetes_ca_cert="$K8S_CA_CERT" \
++                  token_reviewer_jwt="$SA_TOKEN" \
++                  disable_iss_validation=true
++    
++                bao write auth/kubernetes/role/{{ .Values.secrets.secretEngine }}-role \
++                bound_service_account_names="*-sa","*-service-account","*-service","*-consumption-be","*-svc-account",'*{{ regexReplaceAll "^.*(.)$" .Values.cluster.namespace "${1}" }}',"default","keycloak","edc-connector-adapter","rabbitmq" \
++                bound_service_account_namespaces="*" \
++                policies="{{ .Values.secrets.secretEngine }}-policy" || true
++    
++                {{ if .Values.agentList.providers }}
++                bao write auth/kubernetes/role/eso-role \
++                bound_service_account_names="eso" \
++                bound_service_account_namespaces={{ range $index, $item := .Values.agentList.providers }}{{if $index}},{{end}}"{{ $item }}"{{ end }} \
++                policies="eso-read-secrets" \
++                ttl="24h" || true
++                {{ end }}
++            env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
++              - name: VAULT_ADDR
++                value: http://openbao-{{ .Values.cluster.namespace }}:8200
++            volumeMounts:
++            - name: openbao-sa-token
++              mountPath: /var/run/secrets/openbao-sa
++              readOnly: true
++          - name: 6-common-secrets
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                if ! bao kv get -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-redpanda-credentials > /dev/null 2>&1; then
++                  bao kv put -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-redpanda-credentials admin=$redpanda_pass redpanda=$redpanda_pass redpanda_username=admin
++                fi
++                if ! bao kv get -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-pgadmin-credentials > /dev/null 2>&1; then
++                  bao kv put -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-pgadmin-credentials password=$pgadmin_pass postgres=$postgres_pass
++                fi
++                if ! bao kv get -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-notifications > /dev/null 2>&1; then
++                  bao kv put -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-notifications \
++                    API_KEY=apikey \
++                    KAFKA_CLIENT_PASSWORDS=$notification
++                fi
++                if ! bao kv get -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-icms > /dev/null 2>&1; then
++                  bao kv put -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-icms \
++                    API_KEY=apikey \
++                    APPLICATION_KEY=applicationkey \
++                    APPLICATION_SECRET=appsecret \
++                    CONSUMER_KEY=conskey \
++                    KAFKA_CLIENT_PASSWORDS=$icms
++                fi
++                # Clearing House reads Elasticsearch with the elastic superuser over
++                # HTTPS and needs the ECK HTTP CA (ca.crt) to trust the endpoint.
++                # Seed the password once, and backfill/seed the CA when available.
++                if [ -n "$elastic_pass" ] && ! bao kv get -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-elastic > /dev/null 2>&1; then
++                  bao kv put -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-elastic elastic="$elastic_pass"
++                fi
++                if [ -n "$elastic_ca" ] && bao kv get -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-elastic > /dev/null 2>&1 && ! bao kv get -mount={{ .Values.secrets.secretEngine }} -field=ca {{ .Values.cluster.namespace }}-elastic > /dev/null 2>&1; then
++                  bao kv patch -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-elastic ca="$elastic_ca"
++                fi
++                bao kv put -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-vault token=$VAULT_TOKEN
++                if ! bao kv get -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-kafka-credentials > /dev/null 2>&1; then
++                  bao kv put -mount={{ .Values.secrets.secretEngine }} {{ .Values.cluster.namespace }}-kafka-credentials \
++                    {{- range .Values.agentList.authorities }}
++                    {{ . }}_authprovider=${{ . }}_authprovider \
++                    {{ . }}_usersroles=${{ . }}_usersroles \
++                    {{ . }}_onboarding=${{ . }}_onboarding \
++                    {{ . }}_tier2gw=${{ . }}_tier2gw \
++                    {{- end }}
++                    {{- range .Values.agentList.providers }}
++                    {{ . }}_authprovider=${{ . }}_authprovider \
++                    {{ . }}_usersroles=${{ . }}_usersroles \
++                    {{ . }}_contract=${{ . }}_contract \
++                    {{ . }}_infrabe=${{ . }}_infrabe \
++                    {{ . }}_tier2gw=${{ . }}_tier2gw \
++                    {{- end }}
++                    {{- range .Values.agentList.consumers }}
++                    {{ . }}_authprovider=${{ . }}_authprovider \
++                    {{ . }}_usersroles=${{ . }}_usersroles \
++                    {{ . }}_contract=${{ . }}_contract \
++                    {{ . }}_contract_consumption=${{ . }}_contract_consumption \
++                    {{ . }}_tier2gw=${{ . }}_tier2gw \
++                    {{ . }}_edcconn=${{ . }}_edcconn \
++                    {{- end }}
++                    redpanda=$redpanda \
++                    notification=$notification \
++                    icms=$icms
++                fi
++                {{- range (default (list) .Values.kafkaParticipants.providers) }}
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} -field="{{ . }}_contract" {{ $.Values.cluster.namespace }}-kafka-credentials > /dev/null 2>&1; then
++                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ $.Values.cluster.namespace }}-kafka-credentials \
++                    {{ . }}_authprovider="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_usersroles="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_contract="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_infrabe="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_tier2gw="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                fi
++                {{- end }}
++                {{- range (default (list) .Values.kafkaParticipants.consumers) }}
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} -field="{{ . }}_contract" {{ $.Values.cluster.namespace }}-kafka-credentials > /dev/null 2>&1; then
++                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ $.Values.cluster.namespace }}-kafka-credentials \
++                    {{ . }}_authprovider="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_usersroles="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_contract="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_contract_consumption="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_tier2gw="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_edcconn="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                fi
++                {{- end }}
++                {{- /*
++                Participante HIBRIDO: solo anade los 3 campos propios de la 2a instancia
++                consumer de cada componente (ver secrets.yaml). Guard en _contract_consumer
++                especificamente (no en _contract, que YA existe para un hibrido via
++                kafkaParticipants.providers) para no regenerar credenciales de provider ya
++                en uso. Visto en vivo en extletest/eks-external-rioja: vault-agent-init de
++                contract-consumer se quedaba esperando para siempre un campo que nunca se
++                sembraba.
++                */}}
++                {{- range (default (list) .Values.kafkaParticipants.hybrids) }}
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} -field="{{ . }}_contract_consumer" {{ $.Values.cluster.namespace }}-kafka-credentials > /dev/null 2>&1; then
++                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ $.Values.cluster.namespace }}-kafka-credentials \
++                    {{ . }}_contract_consumer="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_contract_consumption="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    {{ . }}_edcconn="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                fi
++                {{- end }}
++                # mailpit seeding moved to step 9-sync-mailpit-secrets so the
++                # bcrypt htpasswd lines are stored in OpenBao (avoids re-hashing
++                # on every reconcile and lets the K8s Secret derive from a
++                # stable source of truth).
+             envFrom:
+-            - secretRef:
+-                name: secrets-unseal-keys
+-          {{- range $i := until (int .Values.replicas) }}
+-          {{- if gt $i 0 }}
+-          - name: 3-join-raft-init-replica-{{ $i }}
+-            image: "quay.io/openbao/openbao:{{ $.Values.imageTag }}"
++              - secretRef:
++                  name: kafka-users-secret
++            env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
++              - name: VAULT_ADDR
++                value: http://openbao-{{ .Values.cluster.namespace }}:8200
++              - name: VAULT_ENV_ADDR  # Específico para vault-env
++                value: http://openbao-{{ $.Values.cluster.namespace }}:8200    
++              - name: "redpanda_pass"
++                valueFrom:
++                  secretKeyRef:
++                    name: "redpanda-secret"
++                    key: password
++              - name: "pgadmin_pass"
++                valueFrom:
++                  secretKeyRef:
++                    name: "pg-admin-secret"
++                    key: password
++              - name: "postgres_pass"
++                valueFrom:
++                  secretKeyRef:
++                    name: "postgres.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              # Elasticsearch superuser password (created by ECK). Optional so the
++              # init job does not fail if Elasticsearch is not ready yet; the seeding
++              # step below only writes the secret when the value is present.
++              - name: "elastic_pass"
++                valueFrom:
++                  secretKeyRef:
++                    name: "elastic-elasticsearch-es-elastic-user"
++                    key: elastic
++                    optional: true
++              # Public CA of the ECK Elasticsearch HTTP endpoint (non-secret cert).
++              # Stored in Vault so each environment's Clearing House can build its
++              # TLS truststore automatically. Optional for the same reason as above.
++              - name: "elastic_ca"
++                valueFrom:
++                  secretKeyRef:
++                    name: "elastic-elasticsearch-es-http-certs-public"
++                    key: ca.crt
++                    optional: true
++          - name: 7-sync-kafka-users-secret
++            image: "docker.io/alpine/k8s:1.35.2"
+             command: [sh, -c]
+             args:
+               - |
+-                until wget --spider --quiet --timeout=10 --tries=1 --no-check-certificate $VAULT_ADDR 2>/dev/null; do
+-                  echo "Waiting for OpenBao to be accessible..."
+-                  sleep 5
+-                done
+-                
+-                sleep 15
++                if [ -f /etc/alpine-release ]; then apk add jq; fi
++
++                VAULT_TOKEN=$(kubectl get secret secrets-root-token -o jsonpath='{.data.token}' | base64 -d)
++
++                RESPONSE=$(wget -O- --quiet --no-check-certificate \
++                  --header="X-Vault-Token: $VAULT_TOKEN" \
++                  "http://openbao-{{ .Values.cluster.namespace }}:8200/v1/{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-kafka-credentials" 2>/dev/null)
++
++                if echo "$RESPONSE" | jq -e '.data.data' > /dev/null 2>&1; then
++                  PATCH=$(echo "$RESPONSE" | jq -c '{data: (.data.data | with_entries(.value = (.value | @base64)))}')
++                  kubectl patch secret kafka-users-secret --type=merge -p "$PATCH"
++                  echo "kafka-users-secret synchronized from OpenBao"
++                else
++                  echo "kafka-credentials not found in OpenBao, skipping sync"
++                fi
++          # When a new participant is added its SASL user/password lands in
++          # kafka-users-secret (by the previous container) and in
++          # /vault/secrets/plain-jaas.conf inside the kafka pods (by their
++          # vault-agent sidecar), but kafka brokers only load the SASL config
++          # at startup. Compare the secret's current resourceVersion against
++          # the last one we rolled kafka against (kept in the configmap
++          # openbao-init-kafka-state) and restart the statefulset if it
++          # changed. The restart is fire-and-forget so PostSync stays fast;
++          # kafka rolls in the background.
++          - name: 7b-rollout-kafka-on-change
++            image: "docker.io/alpine/k8s:1.35.2"
++            command: [sh, -c]
++            args:
++              - |
++                set -e
++                STS_NAME=kafka
++                if ! kubectl get statefulset ${STS_NAME} >/dev/null 2>&1; then
++                  echo "statefulset ${STS_NAME} not found, skipping kafka rollout"
++                  exit 0
++                fi
++                RV_NOW=$(kubectl get secret kafka-users-secret -o jsonpath='{.metadata.resourceVersion}' 2>/dev/null || echo "")
++                if [ -z "${RV_NOW}" ]; then
++                  echo "kafka-users-secret missing, skipping"
++                  exit 0
++                fi
++                RV_LAST=$(kubectl get configmap openbao-init-kafka-state -o jsonpath='{.data.lastResourceVersion}' 2>/dev/null || echo "")
++                if [ "${RV_NOW}" = "${RV_LAST}" ]; then
++                  echo "kafka-users-secret unchanged (RV=${RV_NOW}), no rollout needed"
++                  exit 0
++                fi
++                echo "kafka-users-secret changed (was=${RV_LAST:-<none>}, now=${RV_NOW}); restarting ${STS_NAME}"
++                kubectl rollout restart statefulset/${STS_NAME}
++                kubectl create configmap openbao-init-kafka-state \
++                  --from-literal=lastResourceVersion="${RV_NOW}" \
++                  --dry-run=client -o yaml | kubectl apply -f -
++                echo "kafka restart triggered; not waiting for completion"
++          - name: 8-sync-redis-secrets
++            image: "docker.io/alpine/k8s:1.35.2"
++            command: [sh, -c]
++            args:
++              - |
++                if [ -f /etc/alpine-release ]; then apk add jq; fi
++
++                VAULT_TOKEN=$(kubectl get secret secrets-root-token -o jsonpath='{.data.token}' | base64 -d)
++
++                sync_redis_secret() {
++                  local namespace=$1
++                  local vault_path=$2
++
++                  RESPONSE=$(wget -O- --quiet --no-check-certificate \
++                    --header="X-Vault-Token: $VAULT_TOKEN" \
++                    "http://openbao-{{ .Values.cluster.namespace }}:8200/v1/{{ .Values.secrets.secretEngine }}/data/${vault_path}" 2>/dev/null)
++
++                  if echo "$RESPONSE" | jq -e '.data.data.redis' > /dev/null 2>&1; then
++                    REDIS_PWD=$(echo "$RESPONSE" | jq -r '.data.data.redis | @base64')
++                    REDIS_CMD_PWD=$(echo "$RESPONSE" | jq -r '.data.data.rediscommander | @base64')
++                    kubectl patch secret redis-secrets -n "$namespace" --type=merge \
++                      -p "{\"data\":{\"redis\":\"${REDIS_PWD}\",\"commander\":\"${REDIS_CMD_PWD}\"}}"
++                    echo "redis-secrets in namespace ${namespace} synchronized from OpenBao path ${vault_path}"
++                  else
++                    echo "No redis secret found at ${vault_path}, skipping namespace ${namespace}"
++                  fi
++                }
++
++                {{- range .Values.agentList.authorities }}
++                sync_redis_secret "{{ . }}" "{{ . }}-redis"
++                {{- end }}
++                {{- range .Values.agentList.providers }}
++                sync_redis_secret "{{ . }}" "{{ . }}-redis"
++                {{- end }}
++                {{- range .Values.agentList.consumers }}
++                sync_redis_secret "{{ . }}" "{{ . }}-redis"
++                {{- end }}
++          {{- if .Values.mailpit.enabled }}
++          # Single source of truth for mailpit credentials.
++          # Seeds OpenBao (only if empty or in the legacy `admin`-only shape) with
++          # ui, smtp and their bcrypt htpasswd lines, then materialises the K8s
++          # Secret `mailpit-secrets` from those OpenBao values via `kubectl apply`.
++          # Because the K8s Secret is no longer rendered by Helm, it never
++          # rotates on every reconcile.
++          - name: 9-sync-mailpit-secrets
++            image: "docker.io/alpine/k8s:1.35.2"
++            command: [sh, -c]
++            args:
++              - |
++                set -eu
++                if [ -f /etc/alpine-release ]; then apk add --no-cache jq apache2-utils; fi
++
++                VAULT_TOKEN=$(kubectl get secret secrets-root-token -o jsonpath='{.data.token}' | base64 -d)
++                OPENBAO_URL="http://openbao-{{ .Values.cluster.namespace }}:8200/v1/{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-mailpit"
++
++                fetch() {
++                  wget -O- --quiet --no-check-certificate \
++                    --header="X-Vault-Token: $VAULT_TOKEN" \
++                    "$OPENBAO_URL" 2>/dev/null || true
++                }
++
++                write() {
++                  wget -O- --quiet --no-check-certificate \
++                    --header="X-Vault-Token: $VAULT_TOKEN" \
++                    --header="Content-Type: application/json" \
++                    --post-data="$1" "$OPENBAO_URL" > /dev/null
++                }
+ 
+-                bao operator raft join http://openbao-{{ $.Values.namespaceTag }}-0.openbao-{{ $.Values.namespaceTag }}-internal:8200
++                RESPONSE=$(fetch)
+ 
+-                bao operator unseal $key1
+-                bao operator unseal $key2
+-                bao operator unseal $key3
++                # Migration / first-seed: ensure ui_htpasswd & smtp_htpasswd exist.
++                if ! echo "$RESPONSE" | jq -e '.data.data.ui_htpasswd' > /dev/null 2>&1; then
++                  if echo "$RESPONSE" | jq -e '.data.data.admin' > /dev/null 2>&1; then
++                    # Legacy entry: reuse the existing admin password as the ui password
++                    UI_PASS=$(echo "$RESPONSE" | jq -r '.data.data.admin')
++                  else
++                    UI_PASS=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 16)
++                  fi
++                  SMTP_PASS=smtppass
++                  UI_HTPASSWD=$(htpasswd -nbB admin "$UI_PASS")
++                  SMTP_HTPASSWD=$(htpasswd -nbB smtp  "$SMTP_PASS")
++                  PAYLOAD=$(jq -nc \
++                    --arg ui "$UI_PASS" \
++                    --arg smtp "$SMTP_PASS" \
++                    --arg uih "$UI_HTPASSWD" \
++                    --arg smtph "$SMTP_HTPASSWD" \
++                    '{data:{ui:$ui, smtp:$smtp, ui_htpasswd:$uih, smtp_htpasswd:$smtph}}')
++                  write "$PAYLOAD"
++                  RESPONSE=$(fetch)
++                  echo "mailpit credentials seeded in OpenBao"
++                fi
++
++                # Materialise the K8s Secret from OpenBao (idempotent: same input → same output).
++                UI=$(echo        "$RESPONSE" | jq -r '.data.data.ui')
++                SMTP=$(echo      "$RESPONSE" | jq -r '.data.data.smtp')
++                UI_HTPASSWD=$(echo   "$RESPONSE" | jq -r '.data.data.ui_htpasswd')
++                SMTP_HTPASSWD=$(echo "$RESPONSE" | jq -r '.data.data.smtp_htpasswd')
++
++                MANIFEST=$(jq -nc \
++                  --arg ui    "$(printf '%s' "$UI"            | base64 | tr -d '\n')" \
++                  --arg smtp  "$(printf '%s' "$SMTP"          | base64 | tr -d '\n')" \
++                  --arg uih   "$(printf '%s' "$UI_HTPASSWD"   | base64 | tr -d '\n')" \
++                  --arg smtph "$(printf '%s' "$SMTP_HTPASSWD" | base64 | tr -d '\n')" \
++                  '{apiVersion:"v1", kind:"Secret", metadata:{name:"mailpit-secrets"}, type:"Opaque", data:{ui:$ui, smtp:$smtp, "ui.htpasswd":$uih, "smtp.htpasswd":$smtph}}')
++                echo "$MANIFEST" | kubectl apply -f -
++                echo "mailpit-secrets synchronised from OpenBao"
++          {{- end }}
++          - name: 9-github-token
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                # Store GitHub token directly in OpenBao
++                echo "Storing GitHub token in OpenBao..."
++                if ! bao kv get -mount={{ .Values.secrets.secretEngine }} github-token > /dev/null 2>&1; then
++                  bao kv put -mount={{ .Values.secrets.secretEngine }} github-token token="$GITHUB_TOKEN"
++                fi
+             env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
+               - name: VAULT_ADDR
+-                value: http://openbao-{{ $.Values.namespaceTag }}-{{ $i }}.openbao-{{ $.Values.namespaceTag }}-internal:8200
+-              - name: VAULT_SKIP_VERIFY
+-                value: "true"
++                value: http://openbao-{{ .Values.cluster.namespace }}:8200
++              - name: GITHUB_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: github-token-secret
++                    key: token
++          {{- range .Values.agentList.authorities }}
++          - name: 6-authority-secrets-{{ . }}
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-xsfc-service \
++                  DATASTORE_FILE_PATH="/var/lib/fc-service/filestore" \
++                  FEDERATED_CATALOGUE_VERIFICATION_SIGNATURES="true" \
++                  GRAPHSTORE_PASSWORD="neo12345" \
++                  GRAPHSTORE_QUERY_TIMEOUT_IN_SECONDS="5" \
++                  GRAPHSTORE_URI="bolt://xsfc-neo4j:7687" \
++                  SPRING_DATASOURCE_PASSWORD=${SIMPL_AUTH_FCSERVICE} \
++                  SPRING_DATASOURCE_URL="jdbc:postgresql://pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local:5432/{{ . }}_fcservice" \
++                  SPRING_DATASOURCE_USERNAME="{{ . }}_fcservice" \
++                  OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-{{ $.Values.namespaceTag }}.{{ $.Values.domainSuffix }}" \
++                  OTEL_RESOURCE_ATTRIBUTES_DEPLOYMENT_ENVIRONMENT="{{ $.Values.domainSuffix }}" \
++                  OTEL_SDK_DISABLED="false"
++                bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-adapter-simpl-backend \
++                  FEDERATED_CATALOOGUE_CLIENT_URL="http://xsfc-service:8081" \
++                  OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-{{ $.Values.namespaceTag }}.{{ $.Values.domainSuffix }}" \
++                  OTEL_RESOURCE_ATTRIBUTES_DEPLOYMENT_ENVIRONMENT="{{ $.Values.domainSuffix }}" \
++                  OTEL_SDK_DISABLED="false"
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-redis > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-redis \
++                    rediscommander=$commander \
++                    redis=$redis
++                fi
++                bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-postgres-passwords \
++                  {{ . }}-authenticationprovider="${SIMPL_AUTH_AUTHPROVIDER}" \
++                  {{ . }}-ejbca="${SIMPL_AUTH_EJBCA}" \
++                  {{ . }}-identityprovider="${SIMPL_AUTH_IDENTITYPROVIDER}" \
++                  {{ . }}-keycloak="${SIMPL_AUTH_KEYCLOAK}" \
++                  {{ . }}-onboarding="${SIMPL_AUTH_ONBOARDING}" \
++                  {{ . }}-securityattributesprovider="${SIMPL_AUTH_SAP}" \
++                  {{ . }}-usersroles="${SIMPL_AUTH_USERSROLES}" \
++                  {{ . }}-fcservice="${SIMPL_AUTH_FCSERVICE}" \
++                  {{ . }}-drupal="${SIMPL_AUTH_DRUPAL}" \
++                  {{ . }}-onlyoffice="${SIMPL_AUTH_ONLYOFFICE}" \
++                  {{ . }}-gnoss-acid="${GNOSS_ACID_PWD}"
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-rabbitmq > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-rabbitmq \
++                    password="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    erlang-cookie="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 64)"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-onlyoffice > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-onlyoffice \
++                    jwt-secret="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak \
++                    admin=${{ . }}_kcadmin \
++                    admin_authority_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32) \
++                    op_authority_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
++                else
++                  if [ -z "$(bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=admin_authority_password {{ . }}-keycloak 2>/dev/null)" ]; then
++                    bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak \
++                      admin_authority_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32) \
++                      op_authority_password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
++                  fi
++                fi
++                if [ -z "$(bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=onboarding_sa {{ . }}-keycloak 2>/dev/null)" ]; then
++                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak \
++                    onboarding_sa=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32)
++                fi
++                ADMIN_AUTH_PWD=$(bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=admin_authority_password {{ . }}-keycloak)
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-drupal > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-drupal \
++                    HASH_SALT=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 55) \
++                    oidc_client=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 43) \
++                    local_login_secret=$(cat /dev/urandom | tr -dc '0-9a-f' | head -c 64) \
++                    authority_sync_client_id="admin-cli" \
++                    authority_sync_username="admin.authority" \
++                    authority_sync_password="${ADMIN_AUTH_PWD}"
++                else
++                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ . }}-drupal \
++                    authority_sync_client_id="admin-cli" \
++                    authority_sync_username="admin.authority" \
++                    authority_sync_password="${ADMIN_AUTH_PWD}" || true
++                fi
++                if [ -z "$(bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=local_login_secret {{ . }}-drupal 2>/dev/null)" ]; then
++                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ . }}-drupal \
++                    local_login_secret=$(cat /dev/urandom | tr -dc '0-9a-f' | head -c 64) || true
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-mautic > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-mautic \
++                    db-password="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    db-root-password="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    admin-password="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    admin-username="admin" \
++                    admin-email="mautic-admin@{{ . }}.{{ $.Values.domainSuffix }}"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-ejbca > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-ejbca keystorepass=${{ . }}_ejbcakspass
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-simpl-schema-manager > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-simpl-schema-manager \
++                    ADMIN_PASSWORD=${{ . }}_schemamgr \
++                    FUSEKI_BASE_URL="http://fuseki-service.{{ . }}.svc.cluster.local:3030"
++                fi
++                # GNOSS Open Core secrets — passwords generated here, no dependency on Zalando secrets
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-virtuoso > /dev/null 2>&1; then
++                  VIRTUOSO_DBA_PWD="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                  VIRTUOSO_READ_PWD="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                  VIRTUOSO_WRITE_PWD="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                  CONN_BALANCER="HOST=virtuoso.{{ . }}.svc.cluster.local;UID=dba;PWD=${VIRTUOSO_DBA_PWD};Pooling=true;Max Pool Size=10"
++                  CONN_V1="HOST=virtuoso1.{{ . }}.svc.cluster.local;UID=dba;PWD=${VIRTUOSO_DBA_PWD};Pooling=true;Max Pool Size=10"
++                  CONN_V2="HOST=virtuoso2.{{ . }}.svc.cluster.local;UID=dba;PWD=${VIRTUOSO_DBA_PWD};Pooling=true;Max Pool Size=10"
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-virtuoso \
++                    dba-password="${VIRTUOSO_DBA_PWD}" \
++                    gnoss-read-password="${VIRTUOSO_READ_PWD}" \
++                    gnoss-write-password="${VIRTUOSO_WRITE_PWD}" \
++                    virtuosoRead="${CONN_BALANCER}" \
++                    virtuosoReadHome="${CONN_BALANCER}" \
++                    virtuosoWriteHome="${CONN_BALANCER}" \
++                    virtuosoWrite1="${CONN_V1}" \
++                    virtuosoWrite2="${CONN_V2}"
++                fi
++                # All three gnoss connection strings point to the same database (gnoss_acid).
++                # PostgreSQL does not support cross-database FK references, so acid/base/oauth
++                # contexts must all migrate against a single database.
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-gnoss > /dev/null 2>&1; then
++                  GNOSS_CONN="Server=pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local;Database={{ . }}_gnoss_acid;User Id={{ . }}_gnoss_acid;Password=${GNOSS_ACID_PWD};Persist Security Info=true;TrustServerCertificate=True;Search Path=public"
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-gnoss \
++                    acid-password="${GNOSS_ACID_PWD}" \
++                    acidConnectionString="${GNOSS_CONN}" \
++                    baseConnectionString="${GNOSS_CONN}" \
++                    oauthConnectionString="${GNOSS_CONN}"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=gnoss-connectionString {{ . }}-rabbitmq > /dev/null 2>&1; then
++                  RABBITMQ_PWD="$(bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=password {{ . }}-rabbitmq)"
++                  bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ . }}-rabbitmq \
++                    gnoss-connectionString="amqp://user:${RABBITMQ_PWD}@rabbitmq.{{ . }}.svc.cluster.local:5672/"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-gnoss-identity > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-gnoss-identity \
++                    scope="gnoss" \
++                    clientID="gnoss-client" \
++                    clientSecret="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                fi
++            envFrom:
++              - secretRef:
++                  name: redis-secrets
++            env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
++              - name: VAULT_ADDR
++                value: http://openbao-{{ $.Values.cluster.namespace }}:8200
++              - name: "{{ . }}_kcadmin"
++                valueFrom:
++                  secretKeyRef:
++                    name: "keycloak-secrets"
++                    key: {{ . }}
++              - name: "{{ . }}_ejbcakspass"
++                valueFrom:
++                  secretKeyRef:
++                    name: "ejbca-secret"
++                    key: "keystorepass"
++              - name: "{{ . }}_schemamgr"
++                valueFrom:
++                  secretKeyRef:
++                    name: "schema-manager-secret"
++                    key: "admin"
++              - name: "{{ . }}_fcservice"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-fcservice.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_authenticationprovider"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-authenticationprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_ejbca"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-ejbca.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_identityprovider"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-identityprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_keycloak"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-keycloak.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_onboarding"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-onboarding.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_securityattributesprovider"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-securityattributesprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_usersroles"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-usersroles.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_drupal"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-drupal.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              # Dash-less variable names (shell compatible)
++              - name: SIMPL_AUTH_AUTHPROVIDER
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-authenticationprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_EJBCA
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-ejbca.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_IDENTITYPROVIDER
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-identityprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_KEYCLOAK
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-keycloak.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_ONBOARDING
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-onboarding.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_SAP
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-securityattributesprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_USERSROLES
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-usersroles.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_FCSERVICE
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-fcservice.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_DRUPAL
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-drupal.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: SIMPL_AUTH_ONLYOFFICE
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-onlyoffice.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: GNOSS_ACID_PWD
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-gnoss-acid.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++                    optional: true
++          {{- end }}
++          {{- range .Values.agentList.providers }}
++          - name: 6-provider-secrets-{{ . }}
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-contract > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-contract \
++                    API_KEY="apikey" \
++                    DB_URL="jdbc:postgresql://pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local:5432/{{ . }}_contract" \
++                    DB_USER="{{ . }}_contract" \
++                    DBPASSWORD="${{ . }}_contractdb" \
++                    KAFKA_CLIENT_PASSWORDS="${{ . }}_contract" \
++                    KAFKA_CLIENT_USER="{{ . }}_contract"
++                fi
++                bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-postgres-passwords \
++                  {{ . }}-authenticationprovider=${{ . }}_authenticationproviderdb \
++                  {{ . }}-keycloak=${{ . }}_keycloakdb \
++                  {{ . }}-usersroles=${{ . }}_usersrolesdb \
++                  {{ . }}-infrabe=${{ . }}_infrabedb \
++                  {{ . }}-edc=${{ . }}_edcdb
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-redis > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-redis \
++                    rediscommander=$commander \
++                    redis=$redis
++                fi
++                bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-infra-adapter-simpl-backend \
++                  ENGINE_PATH="/opt/plugins/hashicorp-vault-provider.so" \
++                  HTTP_HOST="" \
++                  HTTP_IDLE_TIMEOUT="120s" \
++                  HTTP_PORT="8080" \
++                  HTTP_READ_TIMEOUT="10s" \
++                  HTTP_WRITE_TIMEOUT="10s" \
++                  LOG_ENCODING="json" \
++                  LOG_LEVEL="debug" \
++                  VAULT_ADRESS="http://openbao-{{ $.Values.cluster.namespace }}.{{ $.Values.cluster.namespace }}.svc.cluster.local:8200" \
++                  VAULT_TOKEN="$VAULT_TOKEN"
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-infrastructure-be > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-infrastructure-be \
++                    gitea.token="giteatoken" \
++                    infrastructure.api.config.value="Bearer tok_uuid" \
++                    kafka.sasl.enabled=true \
++                    kafka.sasl.password="${{ . }}_infrabe" \
++                    kafka.sasl.username="{{ . }}_infrabe" \
++                    spring.datasource.password="${{ . }}_infrabedb" \
++                    spring.datasource.username="{{ . }}_infrabe" \
++                    spring.mail.password="smtppassword" \
++                    spring.mail.username="no-reply@simplservices.com" \
++                    vault.token="$VAULT_TOKEN"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-simpl-edc > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-simpl-edc \
++                    contractmanager_apikey="apikey" \
++                    edc_datasource_default_password="${{ . }}_edcdb" \
++                    edc_datasource_policy_password="${{ . }}_edcdb" \
++                    edc_ionos_access_key="accesskeystring" \
++                    edc_ionos_endpoint="s3-eu-central-1.ionoscloud.com" \
++                    edc_ionos_endpoint_region="de" \
++                    edc_ionos_secret_key="secretkeystring" \
++                    edc_ionos_token="tokenstring" \
++                    fr_gxfs_s3_endpoint="https://s3.eu-west-1.amazonaws.com" \
++                    fr_gxfs_s3_access_key="$(cat /dev/urandom | tr -dc 'A-Z0-9' | head -c 20)" \
++                    fr_gxfs_s3_secret_key="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 40)" \
++                    otel_experimental_log_level="debug" \
++                    otel_exporter_otlp_endpoint="http://collector-{{ $.Values.namespaceTag }}.{{ $.Values.domainSuffix }}" \
++                    otel_exporter_otlp_protocol="http/protobuf" \
++                    otel_instrumentation_http_url_connection_enabled="false" \
++                    otel_instrumentation_jdbc_enabled="false" \
++                    otel_instrumentation_jersey_enabled="false" \
++                    otel_instrumentation_servlet_enabled="false" \
++                    otel_logs_exporter="none" \
++                    otel_metrics_exporter="none" \
++                    otel_resource_attributes="service.name=edc,deployment.environment={{ . }}" \
++                    otel_traces_exporter="otlp"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak \
++                    admin=${{ . }}_kcadmin \
++                    admin_dataprovider="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    op_dataprovider="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                else
++                  if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=admin_dataprovider {{ . }}-keycloak > /dev/null 2>&1; then
++                    bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak \
++                      admin_dataprovider="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                      op_dataprovider="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                  fi
++                fi
+             envFrom:
+-            - secretRef:
+-                name: secrets-unseal-keys
++              - secretRef:
++                  name: kafka-users-secret
++              - secretRef:
++                  name: redis-secrets
++            env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
++              - name: VAULT_ADDR
++                value: http://openbao-{{ $.Values.cluster.namespace }}:8200
++              - name: "{{ . }}_kcadmin"
++                valueFrom:
++                  secretKeyRef:
++                    name: "keycloak-secrets"
++                    key: {{ . }}
++              - name: "{{ . }}_gitea"
++                valueFrom:
++                  secretKeyRef:
++                    name: "gitea-secrets"
++                    key: "gitops_test"
++              - name: "{{ . }}_contractdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-contract.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_edcdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-edc.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_infrabedb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-infrabe.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_authenticationproviderdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-authenticationprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_keycloakdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-keycloak.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_usersrolesdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-usersroles.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
+           {{- end }}
++          {{- range .Values.agentList.consumers }}
++          - name: 6-consumer-secrets-{{ . }}
++            image: "docker.io/openbao/openbao:2.4.3"
++            command: [sh, -c]
++            args:
++              - |
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-contract > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-contract \
++                    API_KEY="apikey" \
++                    DB_URL="jdbc:postgresql://pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local:5432/{{ . }}_contract" \
++                    DB_USER="{{ . }}_contract" \
++                    DBPASSWORD="${{ . }}_contractdb" \
++                    KAFKA_CLIENT_PASSWORDS="${{ . }}_contract" \
++                    KAFKA_CLIENT_USER="{{ . }}_contract"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-contract-consumption-be > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-contract-consumption-be \
++                    KAFKA_AUTH_SASL_PASSWORD="${{ . }}_contract_consumption" \
++                    KAFKA_AUTH_SASL_USERNAME="{{ . }}_contract_consumption"
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-redis > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-redis \
++                    rediscommander=$commander \
++                    redis=$redis
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-edc-connector-adapter > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-edc-connector-adapter \
++                    KAFKA_AUTH_SASL_PASSWORD="${{ . }}_edcconn" \
++                    KAFKA_AUTH_SASL_USERNAME="{{ . }}_edcconn"
++                fi
++                bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-postgres-passwords \
++                  {{ . }}-authenticationprovider=${{ . }}_authenticationproviderdb \
++                  {{ . }}-keycloak=${{ . }}_keycloakdb \
++                  {{ . }}-usersroles=${{ . }}_usersrolesdb \
++                  {{ . }}-edc=${{ . }}_edcdb
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak \
++                    admin=${{ . }}_kcadmin \
++                    admin_consumer="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                    op_consumer="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                else
++                  if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} -field=admin_consumer {{ . }}-keycloak > /dev/null 2>&1; then
++                    bao kv patch -mount={{ $.Values.secrets.secretEngine }} {{ . }}-keycloak \
++                      admin_consumer="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)" \
++                      op_consumer="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 32)"
++                  fi
++                fi
++                if ! bao kv get -mount={{ $.Values.secrets.secretEngine }} {{ . }}-simpl-edc > /dev/null 2>&1; then
++                  bao kv put -mount={{ $.Values.secrets.secretEngine }} {{ . }}-simpl-edc \
++                    contractmanager_apikey="apikey" \
++                    edc_datasource_default_password="${{ . }}_edcdb" \
++                    edc_datasource_policy_password="${{ . }}_edcdb" \
++                    edc_ionos_access_key="accesskeystring" \
++                    edc_ionos_endpoint="s3-eu-central-1.ionoscloud.com" \
++                    edc_ionos_endpoint_region="de" \
++                    edc_ionos_secret_key="secretkeystring" \
++                    edc_ionos_token="tokenstring" \
++                    fr_gxfs_s3_endpoint="https://s3.eu-west-1.amazonaws.com" \
++                    fr_gxfs_s3_access_key="$(cat /dev/urandom | tr -dc 'A-Z0-9' | head -c 20)" \
++                    fr_gxfs_s3_secret_key="$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 40)" \
++                    otel_experimental_log_level="debug" \
++                    otel_exporter_otlp_endpoint="http://collector-{{ $.Values.namespaceTag }}.{{ $.Values.domainSuffix }}" \
++                    otel_exporter_otlp_protocol="http/protobuf" \
++                    otel_instrumentation_http_url_connection_enabled="false" \
++                    otel_instrumentation_jdbc_enabled="false" \
++                    otel_instrumentation_jersey_enabled="false" \
++                    otel_instrumentation_servlet_enabled="false" \
++                    otel_logs_exporter="none" \
++                    otel_metrics_exporter="none" \
++                    otel_resource_attributes="service.name=edc,deployment.environment={{ . }}" \
++                    otel_traces_exporter="otlp"
++                fi
++            envFrom:
++              - secretRef:
++                  name: kafka-users-secret
++              - secretRef:
++                  name: redis-secrets
++            env:
++              - name: VAULT_TOKEN
++                valueFrom:
++                  secretKeyRef:
++                    name: secrets-root-token
++                    key: token
++              - name: VAULT_ADDR
++                value: http://openbao-{{ $.Values.cluster.namespace }}:8200
++              - name: "{{ . }}_kcadmin"
++                valueFrom:
++                  secretKeyRef:
++                    name: "keycloak-secrets"
++                    key: {{ . }}
++              - name: "{{ . }}_contractdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-contract.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_edcdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-edc.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_authenticationproviderdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-authenticationprovider.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_keycloakdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-keycloak.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
++              - name: "{{ . }}_usersrolesdb"
++                valueFrom:
++                  secretKeyRef:
++                    name: "{{ . }}-usersroles.pg-cluster.credentials.postgresql.acid.zalan.do"
++                    key: password
+           {{- end }}
+           containers:
+           - name: final-step
+-            image: busybox
++            image: docker.io/library/busybox:1.37.0
+             command: ['sh', '-c', 'echo "Final step: End the process"']
+             volumeMounts:
+             - name: init-bao-volume
+@@ -123,4 +1158,7 @@
+           volumes:
+           - name: init-bao-volume
+             persistentVolumeClaim:
+-              claimName: init-bao-{{ .Values.cluster.namespace }}-pvc
+\ No newline at end of file
++              claimName: init-bao-{{ .Values.cluster.namespace }}-pvc
++          - name: openbao-sa-token
++            secret:
++              secretName: openbao-sa-token
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -3,8 +3,11 @@
+ metadata:
+   name: init-bao-{{ .Values.cluster.namespace }}-pvc
+ spec:
++  {{- if .Values.storageClassName }}
++  storageClassName: {{ .Values.storageClassName }}
++  {{- end }}
+   accessModes:
+-    - ReadWriteMany
++    - ReadWriteOnce
+   resources:
+     requests:
+-      storage: 1Gi
+\ No newline at end of file
++      storage: 1Gi
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -3,44 +3,74 @@
+ kind: ServiceAccount
+ metadata:
+   name: openbao-{{ .Values.cluster.namespace }}-svc-account
+-  namespace: "{{ .Values.cluster.namespace }}"
++  namespace: {{ .Values.cluster.namespace }}
+   labels:
+-    app.kubernetes.io/name: openbao-{{ .Values.cluster.namespace }}-svc-account
++    app.kubernetes.io/name: openbao-svc-account
+     app.kubernetes.io/part-of: openbao
+ ---
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: Role
+ metadata:
+   name: openbao-{{ .Values.cluster.namespace }}-role
+-  namespace: "{{ .Values.cluster.namespace }}"
++  namespace: {{ .Values.cluster.namespace }}
+   labels:
+-    app.kubernetes.io/name: openbao-{{ .Values.cluster.namespace }}-svc-account
++    app.kubernetes.io/name: openbao-svc-account
+ rules:
+-  - apiGroups: ["apps"]
+-    resources: ["statefulsets"]
+-    verbs: ["get"]
+   - apiGroups: [""]
+     resources: ["secrets", "configmaps"]
+-    verbs: ["create", "get", "watch", "list", "update", "delete", "patch"]
++    verbs: ["create", "get", "watch", "list", "update", "patch", "delete"]
+   - apiGroups: [""]
+     resources: ["pods"]
+     verbs: ["get", "patch", "delete"]
+-  - apiGroups: ["batch"]
+-    resources: ["cronjobs", "jobs"]
+-    verbs: ["get", "create", "list"]
++  # Needed by the new 7b-rollout-kafka-on-change container to restart the
++  # kafka brokers when their SASL users list changes.
++  - apiGroups: ["apps"]
++    resources: ["statefulsets"]
++    verbs: ["get", "patch"]
+ ---
+ apiVersion: rbac.authorization.k8s.io/v1
+ kind: RoleBinding
+ metadata:
+   name: openbao-{{ .Values.cluster.namespace }}-rb
+-  namespace: "{{ .Values.cluster.namespace }}"
++  namespace: {{ .Values.cluster.namespace }}
+   labels:
+-    app.kubernetes.io/name: openbao-{{ .Values.cluster.namespace }}-svc-account
++    app.kubernetes.io/name: openbao-svc-account
+ subjects:
+   - kind: ServiceAccount
+     name: openbao-{{ .Values.cluster.namespace }}-svc-account
+-    namespace: "{{ .Values.cluster.namespace }}"
++    namespace: {{ .Values.cluster.namespace }}
++roleRef:
++  apiGroup: rbac.authorization.k8s.io
++  kind: Role
++  name: openbao-{{ .Values.cluster.namespace }}-role
++{{- $allAgents := concat (.Values.agentList.authorities | default list) (.Values.agentList.providers | default list) (.Values.agentList.consumers | default list) }}
++{{- range $allAgents }}
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: Role
++metadata:
++  name: openbao-{{ $.Values.cluster.namespace }}-role
++  namespace: {{ . }}
++  labels:
++    app.kubernetes.io/name: openbao-svc-account
++rules:
++  - apiGroups: [""]
++    resources: ["secrets"]
++    verbs: ["get", "patch", "update"]
++---
++apiVersion: rbac.authorization.k8s.io/v1
++kind: RoleBinding
++metadata:
++  name: openbao-{{ $.Values.cluster.namespace }}-rb
++  namespace: {{ . }}
++  labels:
++    app.kubernetes.io/name: openbao-svc-account
++subjects:
++  - kind: ServiceAccount
++    name: openbao-{{ $.Values.cluster.namespace }}-svc-account
++    namespace: {{ $.Values.cluster.namespace }}
+ roleRef:
+   apiGroup: rbac.authorization.k8s.io
+   kind: Role
+-  name: openbao-{{ .Values.cluster.namespace }}-role
+\ No newline at end of file
++  name: openbao-{{ $.Values.cluster.namespace }}-role
++{{- end }}
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -0,0 +1,152 @@
++apiVersion: v1
++kind: Secret
++metadata:
++  name: pg-admin-secret
++data:
++  password: {{ include "pgadmin.password" . | b64enc }}
++type: Opaque
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: redpanda-secret
++  namespace: {{ .Release.Namespace }}
++type: Opaque
++data:
++  auth: {{ htpasswd "admin" (include "redpanda.password" .) | b64enc }}
++  password: {{ include "redpanda.password" . | b64enc }}
++---
++{{- $existingKafkaSecret := lookup "v1" "Secret" .Release.Namespace "kafka-users-secret" -}}
++apiVersion: v1
++kind: Secret
++metadata:
++  name: kafka-users-secret
++data:
++  redpanda: {{ include "redpandakafkauser.password" . | b64enc }}
++  notification: {{ include "notificationkafkauser.password" . | b64enc }}
++  icms: {{ include "icmskafkauser.password" . | b64enc }}
++  {{- range .Values.agentList.authorities }}
++  "{{ . }}_authprovider": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_authprovider" .)) }}{{ index $existingKafkaSecret.data (printf "%s_authprovider" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_usersroles": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_usersroles" .)) }}{{ index $existingKafkaSecret.data (printf "%s_usersroles" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_onboarding": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_onboarding" .)) }}{{ index $existingKafkaSecret.data (printf "%s_onboarding" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_tier2gw": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_tier2gw" .)) }}{{ index $existingKafkaSecret.data (printf "%s_tier2gw" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  {{- end }}
++  {{- range .Values.agentList.providers }}
++  "{{ . }}_authprovider": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_authprovider" .)) }}{{ index $existingKafkaSecret.data (printf "%s_authprovider" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_usersroles": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_usersroles" .)) }}{{ index $existingKafkaSecret.data (printf "%s_usersroles" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_contract": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_contract" .)) }}{{ index $existingKafkaSecret.data (printf "%s_contract" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_infrabe": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_infrabe" .)) }}{{ index $existingKafkaSecret.data (printf "%s_infrabe" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_tier2gw": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_tier2gw" .)) }}{{ index $existingKafkaSecret.data (printf "%s_tier2gw" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  {{- end }}
++  {{- range .Values.agentList.consumers }}
++  "{{ . }}_authprovider": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_authprovider" .)) }}{{ index $existingKafkaSecret.data (printf "%s_authprovider" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_usersroles": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_usersroles" .)) }}{{ index $existingKafkaSecret.data (printf "%s_usersroles" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_contract": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_contract" .)) }}{{ index $existingKafkaSecret.data (printf "%s_contract" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_contract_consumption": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_contract_consumption" .)) }}{{ index $existingKafkaSecret.data (printf "%s_contract_consumption" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_tier2gw": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_tier2gw" .)) }}{{ index $existingKafkaSecret.data (printf "%s_tier2gw" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_edcconn": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_edcconn" .)) }}{{ index $existingKafkaSecret.data (printf "%s_edcconn" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  {{- end }}
++  {{- /*
++  Participante HIBRIDO (provider + consumer en el mismo namespace, p. ej. un conector externo
++  autocontenido): ademas de los campos de provider (ya cubiertos si tambien esta en
++  agentList.providers), necesita los 3 campos propios de la 2a instancia de cada componente que
++  solo existe en modo consumer dentro de un hibrido (contract-consumer, contract-consumption-be,
++  edc-connector-adapter-consumer). NO se tocan aqui los campos de provider: esta lista es
++  puramente aditiva para no arriesgar credenciales ya en uso. Ver vendor/postgres-cluster (mismo
++  patron, _contract_consumer) y la nota en embedded-application-openbao.yaml.
++  */}}
++  {{- range .Values.agentList.hybrids }}
++  "{{ . }}_contract_consumer": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_contract_consumer" .)) }}{{ index $existingKafkaSecret.data (printf "%s_contract_consumer" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_contract_consumption": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_contract_consumption" .)) }}{{ index $existingKafkaSecret.data (printf "%s_contract_consumption" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  "{{ . }}_edcconn": {{ if and $existingKafkaSecret (index $existingKafkaSecret.data (printf "%s_edcconn" .)) }}{{ index $existingKafkaSecret.data (printf "%s_edcconn" .) }}{{ else }}{{ randAlphaNum 16 | nospace | b64enc }}{{ end }}
++  {{- end }}
++type: Opaque
++---
++{{- $existingRedisSecret := lookup "v1" "Secret" .Release.Namespace "redis-secrets" -}}
++apiVersion: v1
++kind: Secret
++metadata:
++  name: redis-secrets
++data:
++  redis: {{ if and $existingRedisSecret (index $existingRedisSecret.data "redis") }}{{ index $existingRedisSecret.data "redis" }}{{ else }}{{ include "redis.password" . | b64enc }}{{ end }}
++  commander: {{ if and $existingRedisSecret (index $existingRedisSecret.data "commander") }}{{ index $existingRedisSecret.data "commander" }}{{ else }}{{ include "rediscommander.password" . | b64enc }}{{ end }}
++type: Opaque
++{{- range .Values.agentList.authorities }}
++{{- $existingRedisSecretNs := lookup "v1" "Secret" . "redis-secrets" }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: redis-secrets
++  namespace: {{ . }}
++data:
++  redis: {{ if and $existingRedisSecretNs (index $existingRedisSecretNs.data "redis") }}{{ index $existingRedisSecretNs.data "redis" }}{{ else }}{{ include "redis.password" $ | b64enc }}{{ end }}
++  commander: {{ if and $existingRedisSecretNs (index $existingRedisSecretNs.data "commander") }}{{ index $existingRedisSecretNs.data "commander" }}{{ else }}{{ include "rediscommander.password" $ | b64enc }}{{ end }}
++type: Opaque
++{{- end }}
++{{- range .Values.agentList.providers }}
++{{- $existingRedisSecretNs := lookup "v1" "Secret" . "redis-secrets" }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: redis-secrets
++  namespace: {{ . }}
++data:
++  redis: {{ if and $existingRedisSecretNs (index $existingRedisSecretNs.data "redis") }}{{ index $existingRedisSecretNs.data "redis" }}{{ else }}{{ include "redis.password" $ | b64enc }}{{ end }}
++  commander: {{ if and $existingRedisSecretNs (index $existingRedisSecretNs.data "commander") }}{{ index $existingRedisSecretNs.data "commander" }}{{ else }}{{ include "rediscommander.password" $ | b64enc }}{{ end }}
++type: Opaque
++{{- end }}
++{{- range .Values.agentList.consumers }}
++{{- $existingRedisSecretNs := lookup "v1" "Secret" . "redis-secrets" }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: redis-secrets
++  namespace: {{ . }}
++data:
++  redis: {{ if and $existingRedisSecretNs (index $existingRedisSecretNs.data "redis") }}{{ index $existingRedisSecretNs.data "redis" }}{{ else }}{{ include "redis.password" $ | b64enc }}{{ end }}
++  commander: {{ if and $existingRedisSecretNs (index $existingRedisSecretNs.data "commander") }}{{ index $existingRedisSecretNs.data "commander" }}{{ else }}{{ include "rediscommander.password" $ | b64enc }}{{ end }}
++type: Opaque
++{{- end }}
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: keycloak-secrets
++data:
++  {{- range .Values.agentList.authorities }}
++  {{ . }}: {{ randAlphaNum 16 | nospace | b64enc }}
++  {{- end }}
++  {{- range .Values.agentList.providers }}
++  {{ . }}: {{ randAlphaNum 16 | nospace | b64enc }}
++  {{- end }}
++  {{- range .Values.agentList.consumers }}
++  {{ . }}: {{ randAlphaNum 16 | nospace | b64enc }}
++  {{- end }}
++type: Opaque
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: gitea-secrets
++data:
++  gitops_test: {{ randAlphaNum 16 | nospace | b64enc }}
++type: Opaque
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: ejbca-secret
++data:
++  keystorepass: {{ randAlphaNum 16 | nospace | b64enc }}
++type: Opaque
++---
++apiVersion: v1
++kind: Secret
++metadata:
++  name: schema-manager-secret
++data:
++  admin: {{ randAlphaNum 16 | nospace | b64enc }}
++type: Opaque
+\ No newline at end of file
+diff -ruN --label 'upstream/charts (v1.1.1)' --label 'vendor/openbao-init/charts (desplegado)' '--exclude=.gitkeep' "upstream/charts (v1.1.1)" "vendor/openbao-init/charts (desplegado)"
+--- upstream/charts (v1.1.1)
++++ vendor/openbao-init/charts (desplegado)
+@@ -1,7 +1,14 @@
+-imageTag: 2.5.5
++agentList: {}
++
++secrets:
++  role: "accessrole_name"
++  secretEngine: name
+ 
+ namespaceTag: nstag
+ cluster:
+   namespace: ns
++storageClassName: ""
+ domainSuffix: int.simpl-europe.eu
+-replicas: 3
+\ No newline at end of file
++
++mailpit:
++  enabled: true

@@ -1,0 +1,63 @@
+# Diff contra el chart publico de SIMPL-open
+#
+# Upstream: https://code.europa.eu/simpl/simpl-open/development/iaa/tier2-gateway
+# Tag base: v2.13.0-rc.1242 (commit a4310e4203, 2026-08-06), carpeta charts/
+# Generado comparando ese arbol descargado contra este directorio (vendor/tier2-gateway/).
+# Para reproducirlo: clonar el tag de arriba y diff -ru charts/ vendor/tier2-gateway/
+#
+--- upstream/charts/Chart.yaml
++++ vendor/tier2-gateway/Chart.yaml
+@@ -1,24 +1,6 @@
+ apiVersion: v2
+-name: tier2-gateway
++appVersion: 2.13.0-rc.1242
+ description: A Helm chart for Kubernetes
+-
+-# A chart can be either an 'application' or a 'library' chart.
+-#
+-# Application charts are a collection of templates that can be packaged into versioned archives
+-# to be deployed.
+-#
+-# Library charts provide useful utilities or functions for the chart developer. They're included as
+-# a dependency of application charts to inject those utilities and functions into the rendering
+-# pipeline. Library charts do not define any templates and therefore cannot be deployed.
++name: tier2-gateway
+ type: application
+-
+-# This is the chart version. This version number should be incremented each time you make changes
+-# to the chart and its templates, including the app version.
+-# Versions are expected to follow Semantic Versioning (https://semver.org/)
+-version: ${PROJECT_RELEASE_VERSION}
+-
+-# This is the version number of the application being deployed. This version number should be
+-# incremented each time you make changes to the application. Versions are not expected to
+-# follow Semantic Versioning. They should reflect the version the application is using.
+-# It is recommended to use it with quotes.
+-appVersion: ${PROJECT_RELEASE_VERSION}
++version: 2.13.0-rc.1242
+--- upstream/charts/values.yaml
++++ vendor/tier2-gateway/values.yaml
+@@ -2,9 +2,9 @@
+ management-port: &management-port 8080
+ replicaCount: 1
+ image:
+-  repository: ${CI_REGISTRY_IMAGE}
++  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/tier2-gateway
+   pullPolicy: Always
+-  tag: ${PROJECT_RELEASE_VERSION}
++  tag: 2.13.0-rc.1242
+ imagePullSecrets: []
+ nameOverride: ""
+ fullnameOverride: ""
+--- upstream/charts/templates/service.yaml
++++ vendor/tier2-gateway/templates/service.yaml
+@@ -7,6 +7,9 @@
+   annotations:
+     external-dns.alpha.kubernetes.io/hostname: {{ tpl .Values.hostT2 . | quote }}
+     external-dns.alpha.kubernetes.io/ttl: "120"
++    {{- with .Values.service.annotations }}
++    {{- toYaml . | nindent 4 }}
++    {{- end }}
+ spec:
+   type: {{ .Values.service.type }}
+   ports:

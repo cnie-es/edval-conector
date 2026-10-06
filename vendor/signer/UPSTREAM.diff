@@ -1,0 +1,602 @@
+Diff entre el chart publico de SIMPL-open (poc-gaia-edc, charts/, GitLab
+code.europa.eu, proyecto simpl/simpl-open/development/gaia-x-edc/poc-gaia-edc,
+rama main, commit cd5ae0bd94b021937562192dc1a2500a30b7c9e3, 2026-07-10) y
+nuestro vendor/signer/ actual. Generado con `diff -ru`, excluyendo LICENSE,
+README.md y ci/ (no existen en el publico, son anadidos nuestros).
+
+Only in /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream: .helmignore
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/Chart.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/Chart.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/Chart.yaml	2026-10-06 13:46:43.732129969 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/Chart.yaml	2026-10-06 13:41:20.003774987 +0200
+@@ -1,24 +1,5 @@
+-apiVersion: v2
+-name: poc-charts
+-description: A Helm chart for Kubernetes
+-
+-# A chart can be either an 'application' or a 'library' chart.
+-#
+-# Application charts are a collection of templates that can be packaged into versioned archives
+-# to be deployed.
+-#
+-# Library charts provide useful utilities or functions for the chart developer. They're included as
+-# a dependency of application charts to inject those utilities and functions into the rendering
+-# pipeline. Library charts do not define any templates and therefore cannot be deployed.
+-type: application
+-
+-# This is the chart version. This version number should be incremented each time you make changes
+-# to the chart and its templates, including the app version.
+-# Versions are expected to follow Semantic Versioning (https://semver.org/)
+-version: ${PROJECT_RELEASE_VERSION}
+-
+-# This is the version number of the application being deployed. This version number should be
+-# incremented each time you make changes to the application. Versions are not expected to
+-# follow Semantic Versioning. They should reflect the version the application is using.
+-# It is recommended to use it with quotes.
+-appVersion: "${PROJECT_RELEASE_VERSION}"
++apiVersion: v1
++appVersion: 0.1.0
++description: signer deployment
++name: signer
++version: 0.1.0
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/old-dev-values.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/old-dev-values.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/old-dev-values.yaml	2026-10-06 13:46:44.259428735 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/old-dev-values.yaml	2026-10-06 13:41:20.003861661 +0200
+@@ -1,39 +1,80 @@
+-SERVICE_PORT: 8084
+-CONTAINER_PORT: 8084
+-DEPLOYMENT_IMAGE_PULL_POLICY: Always
+-
+-# For hashicorp integration following url is /v1/kv/data/<secret_folder_name>/<secret_name> example /v1/kv/data/gaia-x/gaiax-edc-dev-catalogue-adapter-simpl-backend"
+-# For OpenBao integration following url is /v1/<secret_folder_namer>/data/<secret_name> example /v1/common/data/authority01-adapter-simpl-backend
+-secretConfigPath: "/v1/kv/data/gaia-x/gaiax-edc-dev-catalogue-adapter-simpl-backend"
++# -- Default number of instances to start 
++replicaCount: 1
++# -- Application name
++name: signer
++# -- Ovverwrites application name
++nameOverride: ""
++
++image:
++  repository: code.europa.eu:4567/simpl/gaia-x-edc/poc-gaia-edc
++  # -- Image name
++  name: signer
++  tag: "latest"
++  pullPolicy: Always
++
++secretConfigPath: common/dataprovider01-signer-dataprovider01
++
++hashicorp:
++  role: "common-role"
++  service: "http://vault-common01.common01.svc.cluster.local:8200"
++
++podAnnotations: {}
+ 
+ resources:
+-  # We usually recommend not to specify default resources and to leave this as a conscious
+-  # choice for the user. This also increases chances charts run on environments with little
+-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+-  limits:
+-    cpu: 250m
+-    memory: 2Gi
+   requests:
+-    cpu: 250m
+-    memory: 2Gi
++    cpu: 25m
++    memory: 64Mi
++  limits:
++    cpu: 150m
++    memory: 128Mi
+ 
+-ingress:
++autoscaling:
++  # -- Enable autoscaling
++  enabled: false
++  # -- Minimum replicas
++  minReplicas: 1
++  # -- Maximum replicas
++  maxReplicas: 3
++  # -- CPU target for autoscaling trigger
++  targetCPUUtilizationPercentage: 70
++  # -- Memory target for autoscaling trigger
++  targetMemoryUtilizationPercentage: 70
++
++metrics:
++  # -- Enable prometheus metrics
+   enabled: true
+-  host: adapter.dev.simpl-europe.eu
+-  path: /v1/(.*)  # Single capture group for everything after /v1/
+-  tls:
+-    secretName: adapter-tls
+-  clusterIssuer: dev-prod
+-  ingressClass: nginx
++  # -- Port for prometheus metrics
++  port: 2112
+ 
++security:
++  # -- by default, apps run as non-root
++  runAsNonRoot: false
++  # -- User used by the apps
++  runAsUid: 0
++  # -- Group used by the apps
++  runAsGid: 0
+ 
+-deployment:
+-  label: poc
++service:
++  port: 8080
+ 
+ serviceAccount:
+-  enabled: false
++  automountServiceAccountToken: false
++  enabled: true
++
++signer:
++  http:
++    host: ""
++    port: 8080
++
++
++ingress:
++  enabled: true
++  annotations:
++    cert-manager.io/cluster-issuer: "dev-prod"
++    #Having this edit in place set to "true" make the rewrite rule below conflicting with acme http01 validation
++    acme.cert-manager.io/http01-edit-in-place: "false"
++    kubernetes.io/ingress.class: nginx
++  tlsEnabled: true
++  frontendDomain: signer.sandbox-cat-dat.simpl-europe.eu
++  frontendTlsSecretName: signer-manager-tls
+ 
+-hashicorp:
+-  role: "gaiax"
+-  service: "https://vault.tools.simpl-europe.eu"
+Only in /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates: _helpers.tpl
+Only in /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates: argocd
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/deployment.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/deployment.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/deployment.yaml	2026-10-06 13:46:44.769027082 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/deployment.yaml	2026-10-06 13:41:20.003948096 +0200
+@@ -1,35 +1,44 @@
+ apiVersion: apps/v1
+ kind: Deployment
+ metadata:
+-  name: {{ .Release.Name }}-deployment
++  name: "{{ template "app.name" . }}"
++  namespace: {{ .Release.Namespace }}
+   labels:
+-    app: {{ .Values.deployment.labels.app }}
++    {{- include "app.labels" . | nindent 4 }}
++    app.kubernetes.io/instance: {{ include "app.revision" . }}
++    app.kubernetes.io/part-of: rse
+ spec:
+-  {{- $autoscaling := .Values.autoscaling | default dict }}
+-  {{- $resources := .Values.resources | default dict }}
+-  {{- $requests := $resources.requests | default dict }}
+-  {{- $hasCpuRequest := not (empty (get $requests "cpu")) }}
+-  {{- $memoryTarget := $autoscaling.targetMemoryUtilizationPercentage }}
+-  {{- $hasMemoryRequest := not (empty (get $requests "memory")) }}
+-  {{- if not (and $autoscaling.enabled $hasCpuRequest (or (not $memoryTarget) $hasMemoryRequest)) }}
+   replicas: {{ .Values.replicaCount }}
+-  {{- end }}
++  strategy:
++    type: {{ .Values.deployment.strategy.type }}
++    rollingUpdate:
++      maxSurge: {{ .Values.deployment.strategy.rollingUpdate.maxSurge }}
++      maxUnavailable: {{ .Values.deployment.strategy.rollingUpdate.maxUnavailable }}
+   selector:
+     matchLabels:
+-      app: {{ .Values.deployment.labels.app }}
++      {{- include "app.selectorLabels" . | nindent 6 }}
+   template:
+     metadata:
+       labels:
+-        app: {{ .Values.deployment.labels.app }}
++        {{- include "app.labels" . | nindent 8 }}
++      annotations:
++        {{- include "app.metricsAnnotations" . | nindent 8 }}
++{{- if .Values.podAnnotations }}
++{{ toYaml .Values.podAnnotations | indent 8 }}
++{{- end }}
+     spec:
++      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken | default false }}
+       serviceAccountName: {{ .Values.serviceAccount.name | default .Release.Namespace }}
+-      automountServiceAccountToken: {{ .Values.serviceAccount.automountToken }}
+       securityContext:
+         seccompProfile:
+           type: {{ .Values.podSecurityContext.seccompProfile.type }}
++      {{- if $.Values.image.pullSecrets }}
++      imagePullSecrets:
++        - name: {{ .Values.image.pullSecrets }}
++      {{- end }}
+       volumes:
+         - name: vault-secrets
+-          emptyDir: {}
++          emptyDir: { }
+         - name: sa-token
+           projected:
+             sources:
+@@ -43,13 +52,11 @@
+           command: [ "/bin/sh", "-c" ]
+           args:
+             - |
+-              # Install required tools
+               apk add --no-cache curl jq
+ 
+               export SA_TOKEN=$(cat {{ .Values.vault.volumes.serviceAccountTokenMountPath }}/token)
+               export VAULT_ADDR="{{ .Values.vault.address }}"
+ 
+-              # Login to vault
+               while true; do
+                 RESPONSE=$(curl -s -w "\n%{http_code}" --request POST \
+                 --data '{"jwt": "'"$SA_TOKEN"'", "role": "{{ .Values.vault.role }}"}' \
+@@ -69,7 +76,6 @@
+ 
+               VAULT_TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.auth.client_token')
+ 
+-              # Get secrets from vault
+               while true; do
+                 RESPONSE=$(curl -s -w "\n%{http_code}" \
+                   -H "X-Vault-Token: $VAULT_TOKEN" \
+@@ -97,17 +103,36 @@
+             - name: vault-secrets
+               mountPath: {{ .Values.vault.volumes.secretsMountPath }}
+       containers:
+-        - name: {{ .Values.deployment.containerName }}
+-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+-          command: [ "/bin/sh" ]
+-          args:
+-            - -c
+-            - source {{ .Values.vault.volumes.secretsFilePath }} && java -jar {{ .Values.app.jarPath }}
+-          volumeMounts:
+-            - name: vault-secrets
+-              mountPath: {{ .Values.vault.volumes.secretsMountPath }}
+-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+-          ports:
+-            - containerPort: {{ .Values.service.targetPort }}
+-          resources:
+-            {{- toYaml .Values.resources | nindent 12 }}
++      - name: {{ template "app.name" . }}
++        image: "code.europa.eu:4567/simpl/simpl-open/development/gaia-x-edc/poc-gaia-edc/signer:0.0.1"
++        imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
++        command: [ "/bin/sh" ]
++        args:
++          - -c
++          # '.' y no 'source': el contenedor arranca con /bin/sh, donde source no existe (es de bash).
++          - . {{ .Values.vault.volumes.secretsFilePath }} && cd {{ .Values.app.workDir }} && {{ .Values.app.binaryPath }}
++        volumeMounts:
++          - name: vault-secrets
++            mountPath: {{ .Values.vault.volumes.secretsMountPath }}
++        ports:
++        {{- if .Values.metrics.enabled }}
++          - name: monitoring
++            containerPort: {{ .Values.metrics.port }}
++        {{- end }}
++          - name: {{ .Values.service.portName }}
++            containerPort: {{ .Values.signer.http.port }}
++        {{- with .Values.env }}
++        env:
++          {{- toYaml . | nindent 10 }}
++        {{- end }}
++        readinessProbe:
++          httpGet:
++            path: {{ .Values.probes.readiness.path }}
++            port: {{ .Values.probes.readiness.port }}
++          initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
++          periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
++          successThreshold: {{ .Values.probes.readiness.successThreshold }}
++          failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
++          timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
++        resources:
++{{ toYaml .Values.resources | indent 10 }}
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/hpa.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/hpa.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/hpa.yaml	2026-10-06 13:46:45.018838713 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/hpa.yaml	2026-10-06 13:41:20.003948096 +0200
+@@ -1,36 +1,27 @@
+-{{- $autoscaling := .Values.autoscaling | default dict -}}
+-{{- $resources := .Values.resources | default dict -}}
+-{{- $requests := $resources.requests | default dict -}}
+-{{- $hasCpuRequest := not (empty (get $requests "cpu")) -}}
+-{{- $memoryTarget := $autoscaling.targetMemoryUtilizationPercentage -}}
+-{{- $hasMemoryRequest := not (empty (get $requests "memory")) -}}
+-{{- if and $autoscaling.enabled $hasCpuRequest (or (not $memoryTarget) $hasMemoryRequest) }}
++{{- if .Values.autoscaling.enabled }}
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+-  name: {{ .Release.Name }}-hpa
+   labels:
+-    app: {{ .Values.deployment.labels.app }}
++    {{- include "app.labels" . | nindent 4 }}
++  name: {{ template "app.name" . }}
++  namespace: {{ .Release.Namespace }}
+ spec:
+   scaleTargetRef:
+     apiVersion: apps/v1
+     kind: Deployment
+-    name: {{ .Release.Name }}-deployment
+-  minReplicas: {{ $autoscaling.minReplicas }}
+-  maxReplicas: {{ $autoscaling.maxReplicas }}
++    name: {{ template "app.name" . }}
++  minReplicas: {{ .Values.autoscaling.minReplicas }}
++  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+   metrics:
++{{- with .Values.autoscaling.targetCPUUtilizationPercentage }}
+     - type: Resource
+       resource:
+         name: cpu
+-        target:
+-          type: Utilization
+-          averageUtilization: {{ required "Values.autoscaling.targetCPUUtilizationPercentage is required when autoscaling is enabled." $autoscaling.targetCPUUtilizationPercentage }}
+-    {{- with $memoryTarget }}
++{{- end }}
++{{- with .Values.autoscaling.targetMemoryUtilizationPercentage }}
+     - type: Resource
+       resource:
+         name: memory
+-        target:
+-          type: Utilization
+-          averageUtilization: {{ . }}
+-    {{- end }}
+ {{- end }}
++{{- end }}
+\ No newline at end of file
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/ingress.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/ingress.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/ingress.yaml	2026-10-06 13:46:45.291426696 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/ingress.yaml	2026-10-06 13:41:20.003948096 +0200
+@@ -1,35 +1,29 @@
+-{{- if .Values.ingress.enabled -}}
++{{- if .Values.ingress.enabled }}
+ apiVersion: networking.k8s.io/v1
+ kind: Ingress
+ metadata:
++  name: {{ template "app.name" . }}
++  namespace: {{ .Release.Namespace }}
+   annotations:
+-    cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+-    kubernetes.io/ingress.class: {{ .Values.ingress.ingressClass }}
+-    {{- if .Values.ingress.cors.enabled }}
+-    nginx.ingress.kubernetes.io/enable-cors: {{ .Values.ingress.cors.enabled | quote }}
+-    nginx.ingress.kubernetes.io/cors-allow-origin: {{ .Values.ingress.cors.allowOrigin | quote }}
+-    nginx.ingress.kubernetes.io/cors-allow-methods: {{ .Values.ingress.cors.allowMethods | quote }}
+-    nginx.ingress.kubernetes.io/cors-allow-headers: {{ .Values.ingress.cors.allowHeaders | quote }}
+-    nginx.ingress.kubernetes.io/cors-allow-credentials: {{ .Values.ingress.cors.allowCredentials | quote }}
+-    nginx.ingress.kubernetes.io/cors-max-age: {{ .Values.ingress.cors.maxAge | quote }}
+-    {{- end }}
+-    nginx.ingress.kubernetes.io/ssl-redirect: {{ .Values.ingress.sslRedirect | quote }}
+-    nginx.ingress.kubernetes.io/rewrite-target: {{ .Values.ingress.rewriteTarget | quote }}
+-  name: {{ .Release.Name }}-ingress
++{{ toYaml .Values.ingress.annotations | indent 4 }}
++  labels:
++    {{- include "app.labels" . | nindent 4 }}
+ spec:
+-  rules:
+-  - host: {{ .Values.ingress.host }}
+-    http:
+-      paths:
+-      - backend:
+-          service:
+-            name: {{ .Release.Name }}-service
+-            port:
+-              number: {{ .Values.service.port }}
+-        path: {{ .Values.ingress.path }}
+-        pathType: {{ .Values.ingress.pathType }}
++{{- if .Values.ingress.tlsEnabled }}
+   tls:
+     - hosts:
+-        - {{ .Values.ingress.host }}
+-      secretName: {{ .Values.ingress.tls.secretName }}
++        - {{ .Values.ingress.frontendDomain }}
++      secretName: {{ .Values.ingress.frontendTlsSecretName }}
+ {{- end }}
++  rules:
++    - host: {{ .Values.ingress.frontendDomain }}
++      http:
++        paths:
++        - path: /
++          pathType: Prefix
++          backend:
++            service:
++              name: {{ template "app.name" . }}
++              port:
++                number: {{ .Values.service.port }}
++{{- end }}
+\ No newline at end of file
+Only in /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates: istio
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/service.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/service.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/service.yaml	2026-10-06 13:46:45.632798687 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/service.yaml	2026-10-06 13:41:20.004017380 +0200
+@@ -1,12 +1,15 @@
+ apiVersion: v1
+ kind: Service
+ metadata:
+-  name: {{ .Release.Name }}-service
++  name: {{ template "app.name" . }}
++  namespace: {{ .Release.Namespace }}
++  labels:
++    {{- include "app.labels" . | nindent 4 }}
+ spec:
+-  selector:
+-    app: {{ .Values.deployment.labels.app }}
++  clusterIP: None
+   ports:
+-    - name: {{ .Values.service.portName }}
+-      protocol: {{ .Values.service.protocol }}
+-      port: {{ .Values.service.port }}
+-      targetPort: {{ .Values.service.targetPort }}
++  - name: {{ .Values.service.portName }}
++    targetPort: {{ .Values.service.port }}
++    port: {{ .Values.signer.http.port }}
++  selector:
++    {{- include "app.selectorLabels" . | nindent 4 }}
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/serviceaccount.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/serviceaccount.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/templates/serviceaccount.yaml	2026-10-06 13:46:45.976667326 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/templates/serviceaccount.yaml	2026-10-06 13:41:20.004017380 +0200
+@@ -1,9 +1,9 @@
+-{{- if .Values.serviceAccount.enabled -}}
+-apiVersion: v1
+-kind: ServiceAccount
+-metadata:
+-  name: {{ .Values.serviceAccount.name | default .Release.Namespace }}
+-  namespace: {{ .Release.Namespace }}
+-  labels:
+-    app: {{ .Release.Name }}
+-{{- end}}
+\ No newline at end of file
++{{- if .Values.serviceAccount.enabled -}}
++apiVersion: v1
++kind: ServiceAccount
++metadata:
++  name: {{ .Values.serviceAccount.name | default .Release.Namespace }}
++  namespace: {{ .Release.Namespace }}
++  labels:
++    app: {{ .Release.Name }}
++{{- end }}
+diff -ru '--exclude=LICENSE' '--exclude=README.md' '--exclude=ci' /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/values.yaml /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/values.yaml
+--- /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/signer-upstream/values.yaml	2026-10-06 13:46:43.960641921 +0200
++++ /tmp/claude-1000/-mnt-c-repo-ednel-gitea/e58d9336-4587-4b60-8ab3-9eb98f501a99/scratchpad/wk-dist-docs/vendor/signer/values.yaml	2026-10-06 13:41:20.004017380 +0200
+@@ -5,26 +5,26 @@
+ 
+ replicaCount: 1
+ 
++name: signer
++nameOverride: ""
++
+ image:
+-  repository: "${CI_REGISTRY_IMAGE}"
+-  tag: "${PROJECT_RELEASE_VERSION}"
++  repository: code.europa.eu:4567/simpl/gaia-x-edc/poc-gaia-edc
++  # -- Image name
++  name: signer
++  tag: "latest"
+   pullPolicy: Always
+ 
+ app:
+-  jarPath: /poc-0.0.1-SNAPSHOT.jar
+-
+-service:
+-  port: 8084
+-  targetPort: 8084
+-  portName: http
+-  protocol: TCP
++  workDir: /opt
++  binaryPath: ./signer
+ 
+ # For hashicorp integration following url is /v1/kv/data/<secret_folder_name>/<secret_name> example /v1/kv/data/gaia-x/gaiax-edc-dev-catalogue-adapter-simpl-backend"
+ # For OpenBao integration following url is /v1/<secret_folder_namer>/data/<secret_name> example /v1/common/data/authority01-adapter-simpl-backend
+ vault:
+   address: "https://secrets.common01.sandbox-cat-dat.simpl-europe.eu"
+   role: "sandbox-cat-dat-role"
+-  secretPath: "/v1/sandbox-cat-dat/data/authority01-adapter-simpl-backend"
++  secretPath: "/v1/sandbox-cat-dat/data/dataprovider01-infra-adapter-simpl-backend"
+   auth:
+     kubernetesLoginPath: /v1/auth/kubernetes/login
+     kubernetesAudience: vault
+@@ -39,51 +39,74 @@
+     serviceAccountTokenMountPath: /var/run/secrets/sa
+     secretsFilePath: /vault/secrets/config.txt
+ 
++podAnnotations: {}
++
++podSecurityContext:
++  seccompProfile:
++    type: RuntimeDefault
++
++deployment:
++  strategy:
++    type: RollingUpdate
++    rollingUpdate:
++      maxSurge: 1
++      maxUnavailable: 0
++
+ resources:
+-  limits:
+-    cpu: 250m
+-    memory: 2Gi
+   requests:
+-    cpu: 250m
+-    memory: 2Gi
++    cpu: 25m
++    memory: 64Mi
++  limits:
++    cpu: 150m
++    memory: 128Mi
+ 
+ autoscaling:
+   enabled: false
+   minReplicas: 1
+   maxReplicas: 3
+-  targetCPUUtilizationPercentage: 80
+-  # Optional memory-based autoscaling. Set to a percentage value to enable the memory metric.
+-  targetMemoryUtilizationPercentage:
++  targetCPUUtilizationPercentage: 70
++  targetMemoryUtilizationPercentage: 70
+ 
+-ingress:
++metrics:
+   enabled: true
+-  host: adapter.dev.simpl-europe.eu
+-  path: /v1/(.*)  # Single capture group for everything after /v1/
+-  pathType: Prefix
+-  rewriteTarget: /$1
+-  sslRedirect: true
+-  tls:
+-    secretName: adapter-tls
+-  clusterIssuer: dev-prod
+-  ingressClass: nginx
+-  cors:
+-    enabled: true
+-    allowOrigin: "*"
+-    allowMethods: "GET, POST, OPTIONS, PUT, DELETE"
+-    allowHeaders: "Authorization, DNT, User-Agent, X-Requested-With, If-Modified-Since, Cache-Control, Content-Type, Range"
+-    allowCredentials: true
+-    maxAge: 86400
++  port: 2112
++  path: /metrics
+ 
+-deployment:
+-  containerName: poc-backend
+-  labels:
+-    app: poc
++probes:
++  readiness:
++    path: /readiness
++    port: 8080
++    initialDelaySeconds: 5
++    periodSeconds: 5
++    successThreshold: 2
++    failureThreshold: 2
++    timeoutSeconds: 5
++
++security:
++  runAsNonRoot: false
++  runAsUid: 0
++  runAsGid: 0
+ 
+-podSecurityContext:
+-  seccompProfile:
+-    type: RuntimeDefault
++service:
++  port: 8080
++  portName: http
+ 
+ serviceAccount:
+-  enabled: false
+-  automountToken: false
++  automountServiceAccountToken: false
++  enabled: true
+   tokenExpirationSeconds: 600
++
++signer:
++  http:
++    host: ""
++    port: 8080
++
++ingress:
++  enabled: true
++  annotations:
++    cert-manager.io/cluster-issuer: "dev-prod"
++    acme.cert-manager.io/http01-edit-in-place: "false"
++    kubernetes.io/ingress.class: nginx
++  tlsEnabled: true
++  frontendDomain: signer.sandbox-cat-dat.simpl-europe.eu
++  frontendTlsSecretName: signer-manager-tls
