@@ -820,11 +820,12 @@ spec:
           {{- end }}
         {{- end }}
   # Users Roles FE
-  # Chart en vendor/ con ingressClassName apisix: el original lo trae fijo a nginx y en los clusters
-  # del conector solo hay controlador de APISIX.
-  - repoURL: {{ .Values.values.repo_URL }}
-    targetRevision: {{ .Values.values.branch }}
-    path: vendor/fe-users-and-roles
+  # cnie-es/simpl-fe-users-and-roles publica su propio chart desde ednel-v1.0.6: ya no hace falta
+  # vendorizarlo (el ingressClassName fijo a nginx se arreglo rio arriba, ver PR #12 en
+  # cnie-c1-apps/fe-users-and-roles). ingress.className: apisix abajo activa el fix.
+  - repoURL: https://github.com/cnie-es/simpl-fe-users-and-roles.git
+    targetRevision: ednel-v1.0.6
+    path: charts
     helm:
       {{- if .Values.users_roles_fe.valueFiles }}
       valueFiles:
@@ -836,6 +837,7 @@ spec:
         hostFe: participant-fe-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         ingress:
           issuer: {{ .Values.cluster.issuer }}
+          className: apisix
           {{- if .Values.wildcardTlsSecretName }}
           # SaaS interno/externo: cert wildcard configurado (interno=vallelengua-tls). Sin esto la
           # ingress FE cae al cert per-host letsencrypt (participant-fe-<ns>...-cert) que NO existe/NO
@@ -1065,11 +1067,12 @@ spec:
           {{- end }}
         {{- end }}
   # Authentication Provider FE
-  # Chart en vendor/ con ingressClassName apisix: el original lo trae fijo a nginx y en los clusters
-  # del conector solo hay controlador de APISIX.
-  - repoURL: {{ .Values.values.repo_URL }}
-    targetRevision: {{ .Values.values.branch }}
-    path: vendor/fe-authentication-provider
+  # cnie-es/simpl-fe-authentication-provider publica su propio chart desde ednel-v1.0.6: ya no
+  # hace falta vendorizarlo (el ingressClassName fijo a nginx se arreglo rio arriba, ver PR #12 en
+  # cnie-c1-apps/fe-authentication-provider). ingress.className: apisix abajo activa el fix.
+  - repoURL: https://github.com/cnie-es/simpl-fe-authentication-provider.git
+    targetRevision: ednel-v1.0.6
+    path: charts
     helm:
       {{- if .Values.auth_provider_fe.valueFiles }}
       valueFiles:
@@ -1081,6 +1084,7 @@ spec:
         hostFe: participant-fe-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}
         ingress:
           issuer: {{ .Values.cluster.issuer }}
+          className: apisix
           {{- if .Values.wildcardTlsSecretName }}
           # SaaS interno/externo: cert wildcard configurado (interno=vallelengua-tls). Sin esto la
           # ingress FE cae al cert per-host letsencrypt (participant-fe-<ns>...-cert) que NO existe/NO
@@ -1166,11 +1170,12 @@ spec:
   {{- end }}
   {{- if .Values.data_dashboard.enabled }}
   # Data Dashboard
-  # cnie-es/edc-data-dashboard es el codigo de la app y no trae chart de Helm; el chart va en
-  # vendor/data-dashboard (copiado de external/data-dashboard de simpl-participant-connector).
-  - repoURL: {{ .Values.values.repo_URL }}
-    targetRevision: {{ .Values.values.branch }}
-    path: vendor/data-dashboard
+  # cnie-es/edc-data-dashboard publica su propio chart desde v1.0.8-edval (antes solo tenia el
+  # codigo de la app; el chart se le anadio en cnie-c1-apps/DataDashboard PR #24): ya no hace
+  # falta vendorizarlo.
+  - repoURL: https://github.com/cnie-es/edc-data-dashboard.git
+    targetRevision: v1.0.8-edval
+    path: charts
     helm:
       valueFiles:
         {{- range .Values.data_dashboard.valueFiles }}
