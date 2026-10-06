@@ -1,0 +1,359 @@
+# Diff: kafka-chart upstream (SIMPL-open) vs. vendor/kafka/charts/ (este fork)
+#
+# Upstream: https://code.europa.eu/simpl/simpl-open/administration/notification-and-messaging/messaging/kafka/kafka-chart
+# Tag base: v1.3.1 (commit 9163b56d9b, 2026-07-09) -- coincide con version: 1.3.1 en nuestro charts/Chart.yaml
+# Generado con: diff -u <upstream>/charts/<file> vendor/kafka/charts/<file>
+# Rutas 'upstream-kafka/charts/...' = contenido descargado de ese tag; 'wk-dist-docs/vendor/kafka/charts/...' = este fork
+
+--- upstream-kafka/charts/Chart.yaml	2026-10-06 13:45:41.224269365 +0200
++++ wk-dist-docs/vendor/kafka/charts/Chart.yaml	2026-10-06 13:41:19.989042205 +0200
+@@ -1,2 +1,3 @@
+ name: kafka
+-version: ${PROJECT_RELEASE_VERSION}
++version: 1.3.1
++description: Kafka chart with support for both Vault injection and Kubernetes secrets
+--- upstream-kafka/charts/values.yaml	2026-10-06 13:45:41.535873632 +0200
++++ wk-dist-docs/vendor/kafka/charts/values.yaml	2026-10-06 13:41:19.989135393 +0200
+@@ -1,14 +1,81 @@
+ kafka:
+   image:
+-    tag: 8.2.1
+-    initTag: 3.2.2
++    registry: docker.io
++    application: cp-server
++    tag: 8.0.1
++    initImage: confluent-init-container
++    initTag: 3.0.1
++  imagePullSecrets:
++    - name: github-registry-secret
+   replicas: 3
+-  topic: 
++  topic:
+     replicas: 2
+     insyncreplicas: 1
+     autocreate: true
+   auth:
+     enabled: false
++    # Method for providing SASL credentials: "vault" (HashiCorp Vault injection) or "kubernetes" (K8s Secret)
++    secretMethod: "kubernetes"
++    # Name of the Kubernetes secret containing JAAS config (used when secretMethod is "kubernetes")
++    secretName: "kafka-jaas-secret"
++  # Listeners configuration
++  listeners:
++    # Internal listener - no TLS, fast internal communication
++    internal:
++      # Optional: Override the advertised host
++      advertisedHost: ""
++    # TLS listener - secure internal network access
++    tls:
++      enabled: false
++      # Port for TLS listener (default: 9094)
++      port: 9094
++      # Optional: Override the advertised host
++      advertisedHost: ""
++      # Secret containing TLS certificate
++      secretRef: ""
++      # Generate certificate using cert-manager
++      certManager:
++        enabled: false
++        issuerRef: ""
++        issuerKind: "ClusterIssuer"
++        duration: "2160h"
++        renewBefore: "360h"
++    # External listener - LoadBalancer for external access
++    external:
++      enabled: false
++      # Port for external listener (default: 9093)
++      port: 9093
++      # Domain for external access (e.g., telefonicadev.com)
++      domain: ""
++      # Advertised port for external clients
++      advertisedPort: 9093
++      # Annotations for LoadBalancer service
++      annotations: {}
++      # TLS configuration
++      tls:
++        enabled: false
++        secretRef: ""
++    # Per-broker listeners - each broker gets unique access
++    perBroker:
++      enabled: false
++      # Routing type: "port" or "host"
++      # - port: same host, different ports (kafka.local:9096, kafka.local:9097, kafka.local:9098)
++      # - host: different hosts, same port (kafka0.local:9096, kafka1.local:9096, kafka2.local:9096)
++      routingType: "port"
++      # For port-based routing: host for all brokers
++      host: "host.docker.internal"
++      # For host-based routing: domain suffix and broker prefix (e.g., kafka0.local, kafka1.local)
++      domain: "local"
++      brokerPrefix: "kafka"
++      # Plaintext per-broker listener
++      plaintext:
++        port: 9096
++        portOffset: 9096  # Only used for port-based routing
++      # TLS per-broker listener
++      tls:
++        port: 9099
++        portOffset: 9099  # Only used for port-based routing
++        secretRef: ""
+   serviceAccount:
+     enabled: true
+     name: kafka-sa
+@@ -19,15 +86,21 @@
+     limits:
+       cpu: 2
+       memory: 4Gi
++  storageClass:
++    name: ""
+   clusterLink: false
+   balancer: false
+-  configOverrides:
+-    server: []
+-    log4j: []
+-    log4j2: []
+ 
+ kraftController:
+   replicas: 3
++  image:
++    registry: docker.io
++    application: cp-server
++    tag: 8.0.1
++    initImage: confluent-init-container
++    initTag: 3.0.1
++  imagePullSecrets:
++    - name: github-registry-secret
+   resources:
+     requests:
+       cpu: 1
+@@ -35,9 +108,11 @@
+     limits:
+       cpu: 2
+       memory: 2Gi
++  storageClass:
++    name: ""
+ 
+ hashicorp:
+   service: "http://vaultservice.vaultns.svc.cluster.local:8200"
+   role: "accessrole_name"
+   secretEngine: name
+-  secretConfigPath: "{{ .Values.hashicorp.secretEngine }}/{{ .Release.Namespace }}-kafka-credentials"
+\ No newline at end of file
++  secretConfigPath: "{{ .Values.hashicorp.secretEngine }}/{{ .Release.Namespace }}-kafka-credentials"
+--- upstream-kafka/charts/templates/kafka.yaml	2026-10-06 13:45:41.861411755 +0200
++++ wk-dist-docs/vendor/kafka/charts/templates/kafka.yaml	2026-10-06 13:41:19.989098302 +0200
+@@ -6,17 +6,22 @@
+ spec:
+   replicas: {{ .Values.kafka.replicas }}
+   image:
+-    application: confluentinc/cp-server:{{ .Values.kafka.image.tag }}
+-    init: confluentinc/confluent-init-container:{{ .Values.kafka.image.initTag }}
++    application: {{ .Values.kafka.image.registry }}/{{ .Values.kafka.image.application }}:{{ .Values.kafka.image.tag }}
++    init: {{ .Values.kafka.image.registry }}/{{ .Values.kafka.image.initImage }}:{{ .Values.kafka.image.initTag }}
+   dataVolumeCapacity: 10Gi
++  {{- if .Values.kafka.storageClass.name }}
++  storageClass:
++    name: {{ .Values.kafka.storageClass.name }}
++  {{- end }}
+   dependencies:
+     kRaftController:
+       clusterRef:
+         name: kraftcontroller
+   podTemplate:
+     annotations:
+-      {{- if .Values.kafka.auth.enabled }}
++      {{- if and .Values.kafka.auth.enabled (eq .Values.kafka.auth.secretMethod "vault") }}
+       vault.hashicorp.com/agent-inject: "true"
++      vault.hashicorp.com/agent-image: "docker.io/openbao/openbao:2.4.3"
+       vault.hashicorp.com/role: {{ .Values.hashicorp.role }}
+       {{- if and (hasKey .Values "hashicorp") (hasKey .Values.hashicorp "service") }}
+       vault.hashicorp.com/service: {{ .Values.hashicorp.service }}
+@@ -32,16 +37,101 @@
+         {{- $template = printf "%s{{ end }}`}}" $template -}}
+         {{- tpl $template . | nindent 10 }}
+       {{- end }}
+-      {{- if .Values.kafka.auth.enabled }}
+     serviceAccountName: {{ .Values.kafka.serviceAccount.name }}
+     resources: {{- toYaml .Values.kafka.resources | nindent 6 }}
+-  oneReplicaPerNode: true
++  {{- if .Values.kafka.auth.enabled }}
+   listeners:
+     external:
+       authentication:
+         type: plain
+         jaasConfigPassThrough:
+           directoryPathInContainer: /vault/secrets
++    # Custom advertised listeners
++    custom:
++      {{- if .Values.kafka.listeners.tls.enabled }}
++      # TLS advertised listener on port 9094
++      - name: tls
++        port: 9094
++        authentication:
++          type: plain
++          {{- if eq .Values.kafka.auth.secretMethod "kubernetes" }}
++          jaasConfigPassThrough:
++            secretRef: {{ .Values.kafka.auth.secretName }}
++          {{- else }}
++          jaasConfigPassThrough:
++            directoryPathInContainer: /vault/secrets
++          {{- end }}
++        tls:
++          enabled: true
++          {{- if .Values.kafka.listeners.tls.certManager.enabled }}
++          secretRef: kafka-tls-internal
++          {{- else if .Values.kafka.listeners.tls.secretRef }}
++          secretRef: {{ .Values.kafka.listeners.tls.secretRef }}
++          {{- end }}
++      {{- end }}
++      {{- if .Values.kafka.listeners.perBroker.enabled }}
++      # Per-broker plaintext listener
++      - name: dev-plain
++        port: {{ .Values.kafka.listeners.perBroker.plaintext.port | default 9096 }}
++        authentication:
++          type: plain
++          {{- if eq .Values.kafka.auth.secretMethod "kubernetes" }}
++          jaasConfigPassThrough:
++            secretRef: {{ .Values.kafka.auth.secretName }}
++          {{- else }}
++          jaasConfigPassThrough:
++            directoryPathInContainer: /vault/secrets
++          {{- end }}
++        externalAccess:
++          {{- if eq (.Values.kafka.listeners.perBroker.routingType | default "host") "port" }}
++          # Port-based routing: same host, different ports (host.docker.internal:9096, host.docker.internal:9097, host.docker.internal:9098)
++          type: staticForPortBasedRouting
++          staticForPortBasedRouting:
++            host: {{ .Values.kafka.listeners.perBroker.host | default "host.docker.internal" }}
++            portOffset: {{ .Values.kafka.listeners.perBroker.plaintext.portOffset | default 9096 }}
++          {{- else }}
++          # Host-based routing: different hosts, same port (kafka0.local:9096, kafka1.local:9096, kafka2.local:9096)
++          type: staticForHostBasedRouting
++          staticForHostBasedRouting:
++            domain: {{ .Values.kafka.listeners.perBroker.domain | default "local" }}
++            port: {{ .Values.kafka.listeners.perBroker.plaintext.port | default 9096 }}
++            brokerPrefix: {{ .Values.kafka.listeners.perBroker.brokerPrefix | default "kafka" }}
++          {{- end }}
++      # Per-broker TLS listener
++      - name: dev-tls
++        port: {{ .Values.kafka.listeners.perBroker.tls.port | default 9099 }}
++        authentication:
++          type: plain
++          {{- if eq .Values.kafka.auth.secretMethod "kubernetes" }}
++          jaasConfigPassThrough:
++            secretRef: {{ .Values.kafka.auth.secretName }}
++          {{- else }}
++          jaasConfigPassThrough:
++            directoryPathInContainer: /vault/secrets
++          {{- end }}
++        tls:
++          enabled: true
++          {{- if .Values.kafka.listeners.perBroker.tls.secretRef }}
++          secretRef: {{ .Values.kafka.listeners.perBroker.tls.secretRef }}
++          {{- else if .Values.kafka.listeners.tls.certManager.enabled }}
++          secretRef: kafka-tls-internal
++          {{- end }}
++        externalAccess:
++          {{- if eq (.Values.kafka.listeners.perBroker.routingType | default "host") "port" }}
++          # Port-based routing: same host, different ports (host.docker.internal:9099, host.docker.internal:9100, host.docker.internal:9101)
++          type: staticForPortBasedRouting
++          staticForPortBasedRouting:
++            host: {{ .Values.kafka.listeners.perBroker.host | default "host.docker.internal" }}
++            portOffset: {{ .Values.kafka.listeners.perBroker.tls.portOffset | default 9099 }}
++          {{- else }}
++          # Host-based routing: different hosts, same port (kafka0.local:9099, kafka1.local:9099, kafka2.local:9099)
++          type: staticForHostBasedRouting
++          staticForHostBasedRouting:
++            domain: {{ .Values.kafka.listeners.perBroker.domain | default "local" }}
++            port: {{ .Values.kafka.listeners.perBroker.tls.port | default 9099 }}
++            brokerPrefix: {{ .Values.kafka.listeners.perBroker.brokerPrefix | default "kafka" }}
++          {{- end }}
++      {{- end }}
+   {{- end }}
+   configOverrides:
+     jvm:
+@@ -61,16 +151,6 @@
+       - auto.create.topics.enable={{ .Values.kafka.topic.autocreate }}
+       - confluent.cluster.link.enable={{ .Values.kafka.clusterLink }}
+       - confluent.balancer.enable={{ .Values.kafka.balancer }}
+-      {{- with .Values.kafka.configOverrides.server }}{{ toYaml . | nindent 6 }}{{- end }}
+-    {{- with .Values.kafka.configOverrides.log4j }}
+-    log4j:
+-      {{- toYaml . | nindent 6 }}
+-    {{- end }}
+-    {{- with .Values.kafka.configOverrides.log4j2 }}
+-    log4j2:
+-      {{- toYaml . | nindent 6 }}
+-    {{- end }}
+-
+ ---
+ {{- if .Values.kafka.serviceAccount.enabled -}}
+ apiVersion: v1
+@@ -80,4 +160,34 @@
+   namespace: {{ .Release.Namespace }}
+   labels:
+     app: {{ .Release.Name }}
++{{- if .Values.kafka.imagePullSecrets }}
++imagePullSecrets:
++  {{- toYaml .Values.kafka.imagePullSecrets | nindent 2 }}
++{{- end }}
++{{- end }}
++---
++{{- if and .Values.kafka.listeners.tls.enabled .Values.kafka.listeners.tls.certManager.enabled }}
++apiVersion: cert-manager.io/v1
++kind: Certificate
++metadata:
++  name: kafka-tls-internal
++  namespace: {{ .Release.Namespace }}
++spec:
++  secretName: kafka-tls-internal
++  duration: {{ .Values.kafka.listeners.tls.certManager.duration | default "2160h" }}
++  renewBefore: {{ .Values.kafka.listeners.tls.certManager.renewBefore | default "360h" }}
++  commonName: {{ .Values.kafka.listeners.tls.advertisedHost | default (printf "kafka-tls.%s.svc.cluster.local" .Release.Namespace) }}
++  dnsNames:
++    - {{ .Values.kafka.listeners.tls.advertisedHost | default (printf "kafka-tls.%s.svc.cluster.local" .Release.Namespace) }}
++    - kafka-tls.{{ .Release.Namespace }}.svc.cluster.local
++    - kafka-tls.{{ .Release.Namespace }}.svc
++    - kafka-tls.{{ .Release.Namespace }}
++    - kafka-tls
++    {{- range $i := until (.Values.kafka.replicas | int) }}
++    - kafka-{{ $i }}.kafka.{{ $.Release.Namespace }}.svc.cluster.local
++    - kafka-{{ $i }}.kafka.{{ $.Release.Namespace }}
++    {{- end }}
++  issuerRef:
++    name: {{ .Values.kafka.listeners.tls.certManager.issuerRef }}
++    kind: {{ .Values.kafka.listeners.tls.certManager.issuerKind | default "ClusterIssuer" }}
+ {{- end }}
+--- upstream-kafka/charts/templates/kraftController.yaml	2026-10-06 13:45:42.110655850 +0200
++++ wk-dist-docs/vendor/kafka/charts/templates/kraftController.yaml	2026-10-06 13:41:19.989135393 +0200
+@@ -5,14 +5,27 @@
+ spec:
+   replicas: {{ .Values.kraftController.replicas }}
+   dataVolumeCapacity: 10G
++  {{- if .Values.kraftController.storageClass.name }}
++  storageClass:
++    name: {{ .Values.kraftController.storageClass.name }}
++  {{- end }}
+   image:
+-    application: docker.io/confluentinc/cp-server:{{ .Values.kafka.image.tag }}
+-    init: confluentinc/confluent-init-container:{{ .Values.kafka.image.initTag }}
++    application: {{ .Values.kraftController.image.registry }}/{{ .Values.kraftController.image.application }}:{{ .Values.kraftController.image.tag }}
++    init: {{ .Values.kraftController.image.registry }}/{{ .Values.kraftController.image.initImage }}:{{ .Values.kraftController.image.initTag }}
+   podTemplate:
++    serviceAccountName: kraftcontroller-sa
+     resources: {{- toYaml .Values.kraftController.resources | nindent 6 }}
+   configOverrides:
+     jvm:
+       - "-Xmx4g"
+       - "-XX:+UseContainerSupport"
+       - "-XX:MaxRAMPercentage=50.0"
+-  oneReplicaPerNode: true
+\ No newline at end of file
++---
++apiVersion: v1
++kind: ServiceAccount
++metadata:
++  name: kraftcontroller-sa
++{{- if .Values.kraftController.imagePullSecrets }}
++imagePullSecrets:
++  {{- toYaml .Values.kraftController.imagePullSecrets | nindent 2 }}
++{{- end }}

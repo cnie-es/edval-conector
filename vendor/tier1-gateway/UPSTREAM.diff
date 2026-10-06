@@ -1,0 +1,138 @@
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+--- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
++++ vendor/tier1-gateway (simpl-participant-connector-dist)
+@@ -1,24 +1,6 @@
+ apiVersion: v2
+-name: tier1-gateway
++appVersion: 2.16.0-rc.1379
+ description: A Helm chart for Kubernetes
+-
+-# A chart can be either an 'application' or a 'library' chart.
+-#
+-# Application charts are a collection of templates that can be packaged into versioned archives
+-# to be deployed.
+-#
+-# Library charts provide useful utilities or functions for the chart developer. They're included as
+-# a dependency of application charts to inject those utilities and functions into the rendering
+-# pipeline. Library charts do not define any templates and therefore cannot be deployed.
++name: tier1-gateway
+ type: application
+-
+-# This is the chart version. This version number should be incremented each time you make changes
+-# to the chart and its templates, including the app version.
+-# Versions are expected to follow Semantic Versioning (https://semver.org/)
+ version: 2.16.0-rc.1379
+-
+-# This is the version number of the application being deployed. This version number should be
+-# incremented each time you make changes to the application. Versions are not expected to
+-# follow Semantic Versioning. They should reflect the version the application is using.
+-# It is recommended to use it with quotes.
+-appVersion: 2.16.0-rc.1379
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+--- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
++++ vendor/tier1-gateway (simpl-participant-connector-dist)
+@@ -3,14 +3,32 @@
+ metadata:
+   name: {{ .Chart.Name }}-env-configmap
+ data:
+-  {{- if eq .Values.profile "authority" }}
+-  ONBOARDING_URL: {{ tpl .Values.onboardingUrl . | quote }}
+-  EJBCA_URL: {{ tpl .Values.ejbcaUrl . | quote }}
+-  IDENTITY_PROVIDER_URL: {{ tpl .Values.identityProviderUrl . | quote }}
+-  SAP_URL: {{ tpl .Values.securityAttributesProviderUrl . | quote }}
++  {{- /*
++    Perfil de Spring a partir de .Values.profile (como en la copia de simpl-participant-connector).
++    El chart publico lo documenta pero no lo emitia: tier1 arrancaba sin perfil participant y sin
++    sus rutas (p. ej. /auth hacia el Keycloak del participante, que daba 404), y ademas con las URLs
++    de una authority. Esas URLs solo van con profile: authority.
++  */}}
++  SPRING_PROFILES_ACTIVE: {{ .Values.profile | default "participant" | quote }}
++  {{- if eq (.Values.profile | default "participant") "authority" }}
++  {{- with .Values.onboardingUrl }}
++  ONBOARDING_URL: {{ tpl . $ | quote }}
+   {{- end }}
++  {{- with .Values.ejbcaUrl }}
++  EJBCA_URL: {{ tpl . $ | quote }}
++  {{- end }}
++  {{- with .Values.identityProviderUrl }}
++  IDENTITY_PROVIDER_URL: {{ tpl . $ | quote }}
++  {{- end }}
++  {{- with .Values.securityAttributesProviderUrl }}
++  SAP_URL: {{ tpl . $ | quote }}
++  {{- end }}
++  {{- with .Values.consentManagementUrl }}
++  CONSENT_MANAGEMENT_URL: {{ tpl . $ | quote }}
++  {{- end }}
++  {{- end }}
++
+ 
+-  SPRING_PROFILES_ACTIVE: {{ .Values.profile | quote }}
+   GATEWAY_URL: {{ tpl (printf "%s%s" "https://" .Values.hostT1) . | quote }}
+   USERSROLES_URL: {{ tpl .Values.usersRolesUrl . | quote }}
+   KEYCLOAK_URL: {{ tpl .Values.keycloakUrl . | quote }}
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+--- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
++++ vendor/tier1-gateway (simpl-participant-connector-dist)
+@@ -14,7 +14,7 @@
+     nginx.ingress.kubernetes.io/cors-allow-origin: {{ . | quote }}
+     {{- end }}
+ spec:
+-  ingressClassName: nginx
++  ingressClassName: {{ .Values.ingress.className | default "apisix" }}
+   tls:
+     - hosts:
+         - {{ tpl .Values.hostT1 . }}
+@@ -23,7 +23,9 @@
+     - host: {{ tpl .Values.hostT1 . }}
+       http:
+         paths:
+-          - path: /
++          # /* y no /: con pathType ImplementationSpecific el controlador clasico de APISIX toma
++          # el path literal y "/" casa solo con la raiz (todo lo demas, /auth, /cli..., da 404).
++          - path: /*
+             pathType: ImplementationSpecific
+             backend:
+               service:
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+--- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
++++ vendor/tier1-gateway (simpl-participant-connector-dist)
+@@ -3,8 +3,8 @@
+ # ------------------------------------------------------------------------------
+ image:
+   pullPolicy: Always
+-  repository: ${CI_REGISTRY_IMAGE}
+-  tag: ${PROJECT_RELEASE_VERSION}
++  repository: code.europa.eu:4567/simpl/simpl-open/development/iaa/tier1-gateway
++  tag: 2.16.0-rc.1379
+ 
+ # ------------------------------------------------------------------------------
+ # Application profile
+@@ -18,9 +18,8 @@
+ # Allowed values:
+ # - authority    : enables authority-specific integrations and endpoints
+ # - participant  : enables participant-specific behavior
++# - dataprovider : enables dataprovider-specific behavior
+ #
+-profile: "authority"
+-
+ 
+ # ------------------------------------------------------------------------------
+ # External host configuration
+@@ -192,6 +191,7 @@
+ ejbcaUrl: http://ejbca-community-helm.{{ .Release.Namespace }}.svc.cluster.local:30080
+ identityProviderUrl: http://identity-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
+ authenticationProviderUrl: http://authentication-provider.{{ .Release.Namespace }}.svc.cluster.local:8080
++consentManagementUrl: http://consent-management-be.{{ .Release.Namespace }}.svc.cluster.local:8080
+ 
+ nodeSelector: {}
+ 
+@@ -254,6 +254,9 @@
+ # Example configuration (DO NOT USE AS-IS)
+ #
+ # appConfig:
++#   spring:
++#     profiles:
++#       active: <your-active-profiles>
+ #   springdoc:
+ #     swagger-ui:
+ #       urls:
