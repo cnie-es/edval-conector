@@ -12,3 +12,8 @@ domainSuffix: int.simpl-europe.eu
 
 mailpit:
   enabled: true
+
+# redis-secrets del namespace del release. false en el conector externo, donde lo gestiona
+# openbao-seeder (ver templates/secrets.yaml).
+redisSecret:
+  create: true
