@@ -963,6 +963,11 @@ spec:
         {{- end }}
       {{- end }}
       values: |
+        # El chart oficial (1.7.0-rc.490) despliega el proxy como StatefulSet, pero su HPA apunta a
+        # un Deployment del mismo nombre que no existe: FailedGetScale y la Application principal
+        # queda Degraded aunque el proxy este sano. Con min=max=1 el HPA no aporta nada.
+        autoscaling:
+          enabled: false
         image:
           registry: ghcr.io/cnie-es
           tag: {{ .Values.imagesTags.tier2Proxy }}
