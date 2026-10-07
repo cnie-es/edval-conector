@@ -146,6 +146,10 @@ spec:
         {{- if .Values.openbao_init.storageClassName }}
         storageClassName: {{ .Values.openbao_init.storageClassName }}
         {{- end }}
+        # redis-secrets de este namespace lo declara openbao-seeder (con las guardas contra la
+        # rotacion). Declararlo tambien aqui da dos duenos en ArgoCD.
+        redisSecret:
+          create: false
         namespaceTag: {{ .Values.namespaceTag.common }}
         domainSuffix: {{ .Values.domainSuffix }}
         openbaoHost: secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}
