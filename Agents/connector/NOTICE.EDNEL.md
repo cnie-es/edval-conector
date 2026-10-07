@@ -77,10 +77,3 @@ is split into **two files**, each compared against its own baseline:
 Content that comes from the *other* upstream necessarily shows up as added lines in each diff -
 that is expected, not a discrepancy against that particular baseline; read the two diffs together,
 not in isolation, to see the complete picture.
-
-### Known issue, not corrected by this notice
-
-`charts/Chart.yaml` still reads `name: data-provider` and `version: 3.0.2` - a leftover from the
-original copy that was never renamed. Fixing it is a functional change (it affects how ArgoCD/Helm
-reference this chart), not a documentation change, so it is recorded here as a finding but left
-untouched by this notice.
