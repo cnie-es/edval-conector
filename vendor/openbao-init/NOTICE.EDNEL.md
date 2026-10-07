@@ -4,7 +4,7 @@
 
 The original work, `openbao-init-chart`, is part of the SIMPL programme (© European Union / SIMPL
 Programme) and is licensed under the **European Union Public Licence v. 1.2 (EUPL-1.2)**. See
-[LICENCE](LICENCE), where the full official text of the licence is reproduced. All original
+[LICENSE](LICENSE), where the full official text of the licence is reproduced. All original
 copyright, licence and disclaimer notices are kept intact and unmodified in this fork.
 
 ## Upstream baseline
