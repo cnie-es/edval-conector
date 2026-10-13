@@ -37,7 +37,7 @@ imagesTags:
   infrastructureFe: 1.2.1
   monitoring: 0.5.4
   dataDashboard: v1.0.4-edval
-  contract: 2.9.1-edval
+  contract: 2.9.2-edval
   stubs: 2.1.0
 argocd:
   appname: "${NAMESPACE}"
