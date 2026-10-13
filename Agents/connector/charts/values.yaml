@@ -665,8 +665,8 @@ images:
 # Revision de los charts de cnie-es que antes tomaban values.branch (la rama del conector), que en
 # esos repos no existe: solo tienen estos tags.
 chartRevisions:
-  contractConsumptionBe: 1.20.2-edval
-  edcConnectorAdapter: 1.14.0-edval
+  contractConsumptionBe: 1.20.0-edval
+  edcConnectorAdapter: 1.14.1-edval
 # Ingress publico del data plane del EDC (public-be-<ns>), que el chart cnie-es/simpl-edc no
 # trae. Opt-in para no cambiar los despliegues existentes. Ver templates/edc-public-ingress.yaml.
 edcPublicIngress:
