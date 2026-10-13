@@ -55,6 +55,17 @@ secrets:
   caBundle: ''
 embeddedCommon:
   enabled: false
+# SMTP del realm del participante, solo para embeddedCommon.enabled=true (externos): el camino
+# interno (notification-smtp via Sealed Secrets) no cambia y no usa este bloque. Deshabilitado por
+# defecto: sin el, Keycloak de un externo arranca igual pero no manda ningun correo (UPDATE_PASSWORD,
+# verificacion...). La contrasena NO va aqui: sale de OpenBao,
+# simpl-secrets/data/<namespaceTag.dataprovider>-keycloak#smtp_password.
+smtp:
+  enabled: false
+  host: ""
+  port: ""
+  starttls: false
+  username: ""
 wildcardTlsExternal: false
 # TLS per-host con cert-manager (p. ej. Let's Encrypt via cluster.issuer) en los ingress que por
 # defecto esperan un wildcard: OpenBao embebido, catalogue-ui, sd-ui y data-dashboard. Con true,
@@ -215,6 +226,10 @@ keycloak:
     firstName: Admin
     lastName: Dataprovider
     email: admin.dataprovider@email.com
+  technicalUser:
+    firstName: Tecnico
+    lastName: Dataprovider
+    email: tecnico.dataprovider@email.com
   path: vendor/keycloak
   chart_name: keycloak
   targetRevision: 22.2.5
