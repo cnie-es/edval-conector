@@ -90,6 +90,22 @@
         "ONBOARDER_M",
         "T1UAR_M"
       ]
+    },
+    {
+      "username": "tecnico.dataprovider",
+      "firstName": "${TECHNICAL_FIRSTNAME}",
+      "lastName": "${TECHNICAL_LASTNAME}",
+      "email": "${TECHNICAL_EMAIL}",
+      "enabled": true,
+      "emailVerified": false,
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ],
+      "realmRoles": [
+        "SD_PUBLISHER",
+        "SD_CONSUMER"
+      ]
     }
   ],
   "roles": {

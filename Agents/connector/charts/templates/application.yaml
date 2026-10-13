@@ -312,6 +312,21 @@ spec:
             # previo a edval-gitops#169: smtpServer vacio, Keycloak no manda ese correo pero
             # arranca.
             {{- if .Values.embeddedCommon.enabled }}
+              {{- if .Values.smtp.enabled }}
+            # SMTP propio del externo, via OpenBao (no hay Sealed Secrets fuera del core: ver
+            # aviso de arriba). La contrasena vive en el MISMO Secret OpenBao que ya usa este
+            # participante para su Keycloak (simpl-secrets/<namespaceTag.dataprovider>-keycloak).
+            - name: SMTP_HOST
+              value: {{ .Values.smtp.host | quote }}
+            - name: SMTP_PORT
+              value: {{ .Values.smtp.port | quote }}
+            - name: SMTP_STARTTLS
+              value: {{ .Values.smtp.starttls | quote }}
+            - name: SMTP_USERNAME
+              value: {{ .Values.smtp.username | quote }}
+            - name: SMTP_PASSWORD
+              value: "vault:simpl-secrets/data/{{ .Values.namespaceTag.dataprovider }}-keycloak#smtp_password"
+              {{- else }}
             - name: SMTP_HOST
               value: ""
             - name: SMTP_PORT
@@ -322,6 +337,7 @@ spec:
               value: ""
             - name: SMTP_PASSWORD
               value: ""
+              {{- end }}
             {{- else }}
             - name: SMTP_HOST
               valueFrom:
@@ -355,9 +371,15 @@ spec:
               value: {{ .Values.keycloak.adminUser.lastName | quote }}
             - name: ADMIN_DATAPROVIDER_EMAIL
               value: {{ .Values.keycloak.adminUser.email | quote }}
+            - name: TECHNICAL_FIRSTNAME
+              value: {{ .Values.keycloak.technicalUser.firstName | quote }}
+            - name: TECHNICAL_LASTNAME
+              value: {{ .Values.keycloak.technicalUser.lastName | quote }}
+            - name: TECHNICAL_EMAIL
+              value: {{ .Values.keycloak.technicalUser.email | quote }}
           args:
             - |
-              envsubst '$REDIRECT_URIS $ADMIN_DATAPROVIDER_FIRSTNAME $ADMIN_DATAPROVIDER_LASTNAME $ADMIN_DATAPROVIDER_EMAIL $SMTP_HOST $SMTP_PORT $SMTP_STARTTLS $SMTP_USERNAME $SMTP_PASSWORD' \
+              envsubst '$REDIRECT_URIS $ADMIN_DATAPROVIDER_FIRSTNAME $ADMIN_DATAPROVIDER_LASTNAME $ADMIN_DATAPROVIDER_EMAIL $TECHNICAL_FIRSTNAME $TECHNICAL_LASTNAME $TECHNICAL_EMAIL $SMTP_HOST $SMTP_PORT $SMTP_STARTTLS $SMTP_USERNAME $SMTP_PASSWORD' \
                 < /realm-template/realm-template.json > /config/${REALM_NAME}.json;
           volumeMounts:
             - name: realm-config-volume
