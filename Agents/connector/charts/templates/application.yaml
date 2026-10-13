@@ -559,7 +559,7 @@ spec:
   {{- if .Values.contract_consumption_be.enabled }}
   # Contract Consumption BE (capacidad de consumo del Agente hibrido)
   - repoURL: https://github.com/cnie-es/simpl-contract-consumption-be.git
-    targetRevision: 1.20.2-edval
+    targetRevision: 1.20.0-edval
     path: charts
     targetRevision: {{ .Values.chartRevisions.contractConsumptionBe }}
     helm:
@@ -741,7 +741,7 @@ spec:
         {{- end }}
   # Users Roles
   - repoURL: https://github.com/cnie-es/simpl-users-roles.git
-    targetRevision: 2.11.1-edval
+    targetRevision: 2.11.2-edval
     path: charts
     helm:
       valueFiles:
@@ -820,11 +820,11 @@ spec:
           {{- end }}
         {{- end }}
   # Users Roles FE
-  # cnie-es/simpl-fe-users-and-roles publica su propio chart desde ednel-v1.0.6: ya no hace falta
+  # cnie-es/simpl-fe-users-and-roles publica su propio chart desde ednel-v1.0.4: ya no hace falta
   # vendorizarlo (el ingressClassName fijo a nginx se arreglo rio arriba, ver PR #12 en
   # cnie-c1-apps/fe-users-and-roles). ingress.className: apisix abajo activa el fix.
   - repoURL: https://github.com/cnie-es/simpl-fe-users-and-roles.git
-    targetRevision: ednel-v1.0.6
+    targetRevision: ednel-v1.0.4
     path: charts
     helm:
       {{- if .Values.users_roles_fe.valueFiles }}
@@ -1072,11 +1072,11 @@ spec:
           {{- end }}
         {{- end }}
   # Authentication Provider FE
-  # cnie-es/simpl-fe-authentication-provider publica su propio chart desde ednel-v1.0.6: ya no
+  # cnie-es/simpl-fe-authentication-provider publica su propio chart desde ednel-v1.0.4: ya no
   # hace falta vendorizarlo (el ingressClassName fijo a nginx se arreglo rio arriba, ver PR #12 en
   # cnie-c1-apps/fe-authentication-provider). ingress.className: apisix abajo activa el fix.
   - repoURL: https://github.com/cnie-es/simpl-fe-authentication-provider.git
-    targetRevision: ednel-v1.0.6
+    targetRevision: ednel-v1.0.4
     path: charts
     helm:
       {{- if .Values.auth_provider_fe.valueFiles }}
@@ -1175,11 +1175,11 @@ spec:
   {{- end }}
   {{- if .Values.data_dashboard.enabled }}
   # Data Dashboard
-  # cnie-es/edc-data-dashboard publica su propio chart desde v1.0.8-edval (antes solo tenia el
+  # cnie-es/edc-data-dashboard publica su propio chart desde v1.0.4-edval (antes solo tenia el
   # codigo de la app; el chart se le anadio en cnie-c1-apps/DataDashboard PR #24): ya no hace
   # falta vendorizarlo.
   - repoURL: https://github.com/cnie-es/edc-data-dashboard.git
-    targetRevision: v1.0.8-edval
+    targetRevision: v1.0.4-edval
     path: charts
     helm:
       valueFiles:
@@ -1250,7 +1250,7 @@ spec:
   {{- if .Values.simpl_edc.enabled }}
   # Simpl EDC
   - repoURL: https://github.com/cnie-es/simpl-edc.git
-    targetRevision: 1.0.21-edval
+    targetRevision: 1.0.22-edval
     path: charts
     helm:
       releaseName: {{ .Values.simpl_edc.nameOverride }}
@@ -1304,7 +1304,7 @@ spec:
   # Simpl EDC (perfil consumer) - 2a instancia para el Agente hibrido.
   # Service simpl-edc-consumer-service (29xxx); DB propia <ns>_edc_consumer; mismo participante.
   - repoURL: https://github.com/cnie-es/simpl-edc.git
-    targetRevision: 1.0.21-edval
+    targetRevision: 1.0.22-edval
     path: charts
     helm:
       releaseName: {{ .Values.simpl_edc_consumer.nameOverride }}
@@ -1355,7 +1355,7 @@ spec:
   {{- if .Values.edc_connector_adapter.enabled }}
   # EDC Connector Adapter
   - repoURL: https://github.com/cnie-es/simpl-edc-connector-adapter.git
-    targetRevision: 1.14.0-edval
+    targetRevision: 1.14.1-edval
     path: charts
     helm:
       releaseName: {{ .Values.edc_connector_adapter.nameOverride }}
@@ -1398,7 +1398,7 @@ spec:
   # EDC Connector Adapter (perfil consumer) - 2a instancia para el Agente hibrido.
   # Publica los topics contract_consumption.* que consume contract-consumption-be.
   - repoURL: https://github.com/cnie-es/simpl-edc-connector-adapter.git
-    targetRevision: 1.14.0-edval
+    targetRevision: 1.14.1-edval
     path: charts
     targetRevision: {{ .Values.chartRevisions.edcConnectorAdapter }}
     helm:
@@ -1526,7 +1526,7 @@ spec:
   {{- end }}
   # Contract
   - repoURL: https://github.com/cnie-es/simpl-contract.git
-    targetRevision: 2.9.0-edval
+    targetRevision: 2.9.1-edval
     path: charts
     helm:
       releaseName: {{ .Values.contract.fullnameOverride }}
@@ -1586,7 +1586,7 @@ spec:
   # Contract Manager BE (modo CONSUMER) - 2a instancia para el Agente hibrido.
   # DB y credenciales propias (<ns>_contract_consumer); topics separados por modo (-consumer).
   - repoURL: https://github.com/cnie-es/simpl-contract.git
-    targetRevision: 2.9.0-edval
+    targetRevision: 2.9.1-edval
     path: charts
     helm:
       releaseName: {{ .Values.contract_consumer.fullnameOverride }}
