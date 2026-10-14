@@ -1329,6 +1329,40 @@ realmHardening:
     # Secret (clave ca.crt) con la CA del endpoint de OpenBao. Vacio = CA publica.
     tlsSecret: ""
     envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
+
+# Tras el import del realm, los usuarios admin.dataprovider/tecnico.dataprovider se crean sin
+# contrasena (requiredActions UPDATE_PASSWORD + CONFIGURE_TOTP, ver realm template). Sin este
+# job nadie les manda el enlace: Keycloak NO envia el correo solo por tener requiredActions, hay
+# que invocar explicitamente execute-actions-email (usa el smtpServer ya configurado en el import).
+sendCredentialsEmail:
+  enabled: false
+  image: quay.io/keycloak/keycloak:26.3.2
+  imagePullPolicy: IfNotPresent
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  waitRetries: 60
+  waitSleepSeconds: 5
+  keycloakUrl: ""
+  adminUser: "admin"
+  adminPassword: ""
+  realm: ""
+  # Cliente publico (standardFlowEnabled) por el que el usuario completa el flujo de
+  # UPDATE_PASSWORD/CONFIGURE_TOTP en el navegador.
+  clientId: "frontend-cli"
+  redirectUri: ""
+  # Usernames fijos del realm template (no el email: el realm NO tiene
+  # registrationEmailAsUsername, pese a lo que se penso en un principio).
+  usernames:
+    - admin.dataprovider
+    - tecnico.dataprovider
+  requiredActions:
+    - UPDATE_PASSWORD
+    - CONFIGURE_TOTP
+  vault:
+    addr: ""
+    role: ""
+    tlsSecret: ""
+    envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
 # Capa 1 del aislamiento del realm master: cierra /auth/admin/* y
 # /auth/realms/master/* en el host PUBLICO del participante. Apagado por
 # defecto -> los participantes externos no se ven afectados. Lo enciende el

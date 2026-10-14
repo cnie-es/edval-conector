@@ -165,6 +165,22 @@ spec:
           # impide cerrar /realms/master/* en internet.
           masterFrontendUrl: "https://{{ .Values.adminHost }}"
           {{- end }}
+        sendCredentialsEmail:
+          enabled: true
+          image: "docker.io/bitnamilegacy/keycloak:26.3.2-debian-12-r2"
+          keycloakUrl: "http://keycloak.{{ .Values.cluster.namespace }}.svc.cluster.local"
+          adminUser: "admin"
+          adminPassword: "vault:{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-keycloak#admin"
+          realm: "participant"
+          clientId: "frontend-cli"
+          redirectUri: "https://participant-fe-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/participant-utility/agent-configuration"
+          vault:
+            addr: "https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
+            {{- with include "connector.vaultCaSecret" $ }}
+            tlsSecret: {{ . }}
+            {{- end }}
+            role: {{ .Values.secrets.role }}
+            envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
         {{- if eq (.Values.adminRealmAccess | default "public") "internal" }}
         # Capa 1: cierra /auth/admin/* y /auth/realms/master/* en el host publico del
         # participante. El frontendUrl interno rompe el flujo de NAVEGADOR pero NO el
