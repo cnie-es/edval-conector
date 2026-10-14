@@ -295,50 +295,13 @@ spec:
                 [ "https://participant-fe-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/*","https://catalogue-ui-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/*","https://sd-ui-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/*","https://infrastructure-fe-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/*","https://data-dashboard-{{ .Values.namespaceTag.dataprovider }}.{{ .Values.domainSuffix }}/*" ]
             - name: REALM_NAME
               value: realm
-            # SMTP del realm del participante. Sale del Secret notification-smtp, el MISMO
-            # que usan notification-service y el realm de la authority: no se crean
+            # SMTP del realm del participante. Sale del Secret notification-smtp (SealedSecret),
+            # el MISMO que usan notification-service y el realm de la authority: no se crean
             # credenciales nuevas. Hace falta para que Keycloak pueda mandarle al admin el
-            # correo de UPDATE_PASSWORD; hasta ahora el realm tenia smtpServer vacio y su
-            # Keycloak no podia enviar nada.
-            # El Secret lo replica common-sealed-secrets al namespace del participante
-            # (scope 'hybrids'), ver edval-gitops#169 — SOLO para el core interno.
-            #
-            # Un participante EXTERNO (embeddedCommon.enabled=true) no tiene ese Secret ni
-            # forma de que se lo repliquen (no hay common-sealed-secrets fuera del core, y
-            # muchos externos ni siquiera tienen sealed-secrets controller). Sin este if, el
-            # initContainer import-realm se queda en CreateContainerConfigError para
-            # siempre: "secret notification-smtp not found" (visto en vivo en
-            # extletest/eks-external-rioja). Para externos se vuelve al comportamiento
-            # previo a edval-gitops#169: smtpServer vacio, Keycloak no manda ese correo pero
-            # arranca.
-            {{- if .Values.embeddedCommon.enabled }}
-              {{- if .Values.smtp.enabled }}
-            # SMTP propio del externo, via OpenBao (no hay Sealed Secrets fuera del core: ver
-            # aviso de arriba). La contrasena vive en el MISMO Secret OpenBao que ya usa este
-            # participante para su Keycloak (simpl-secrets/<namespaceTag.dataprovider>-keycloak).
-            - name: SMTP_HOST
-              value: {{ .Values.smtp.host | quote }}
-            - name: SMTP_PORT
-              value: {{ .Values.smtp.port | quote }}
-            - name: SMTP_STARTTLS
-              value: {{ .Values.smtp.starttls | quote }}
-            - name: SMTP_USERNAME
-              value: {{ .Values.smtp.username | quote }}
-            - name: SMTP_PASSWORD
-              value: "vault:simpl-secrets/data/{{ .Values.namespaceTag.dataprovider }}-keycloak#smtp_password"
-              {{- else }}
-            - name: SMTP_HOST
-              value: ""
-            - name: SMTP_PORT
-              value: ""
-            - name: SMTP_STARTTLS
-              value: ""
-            - name: SMTP_USERNAME
-              value: ""
-            - name: SMTP_PASSWORD
-              value: ""
-              {{- end }}
-            {{- else }}
+            # correo de UPDATE_PASSWORD; sin el, el realm tiene smtpServer vacio y su Keycloak
+            # no puede enviar nada. Igual para interno y externo: un externo necesita tener el
+            # controlador de sealed-secrets instalado y este mismo Secret sellado en su
+            # namespace (ver guia de despliegue del conector externo).
             - name: SMTP_HOST
               valueFrom:
                 secretKeyRef:
@@ -364,7 +327,6 @@ spec:
                 secretKeyRef:
                   name: notification-smtp
                   key: SMTP_PASSWORD
-            {{- end }}
             - name: ADMIN_DATAPROVIDER_FIRSTNAME
               value: {{ .Values.keycloak.adminUser.firstName | quote }}
             - name: ADMIN_DATAPROVIDER_LASTNAME
