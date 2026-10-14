@@ -29,7 +29,7 @@ above is the latest commit on `main`, which is the closest verifiable reference.
 | | |
 |---|---|
 | Modified by | EDNEL-RIOJA project team, for CNIE-ES |
-| Vendored inside | `vendor/tier1-gateway` of this repository (`simpl-participant-connector-dist`) |
+| Vendored inside | `vendor/tier1-gateway` of https://github.com/cnie-es/edval-conector |
 | Dates of modification | **2026-10-02** |
 
 The modifications are licensed under the **EUPL-1.2**, the same licence as the original work.

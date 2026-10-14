@@ -21,7 +21,7 @@ copyright, licence and disclaimer notices are kept intact and unmodified in this
 | | |
 |---|---|
 | Modified by | EDNEL-RIOJA project team, for CNIE-ES |
-| Distribution of this derivative work | `cnie-c1-apps/simpl-participant-connector-dist`, `vendor/kafka/` (vendorizado dentro del repositorio del conector, no publicado como repositorio propio) |
+| Distribution of this derivative work | https://github.com/cnie-es/edval-conector, `vendor/kafka/` (vendorizado dentro del repositorio del conector, no publicado como repositorio propio) |
 | Dates of modification | 2026-10-01 to 2026-10-02 |
 
 The modifications are licensed under the **EUPL-1.2**, the same licence as the original work.

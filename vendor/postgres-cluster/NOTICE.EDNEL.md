@@ -31,9 +31,8 @@ indica lo contrario abajo.
 | Dates of modification | 2026-10-01 a 2026-10-02 |
 
 Este chart no tiene publicacion propia en `cnie-es` (a diferencia de los 9 componentes EDVAL): se
-distribuye unicamente vendorizado dentro de este repositorio
-(`simpl-participant-connector-dist`), siguiendo lo acordado el 2026-10-06 (se documenta aqui en vez
-de llevarlo a un repositorio propio en `cnie-es`).
+distribuye unicamente vendorizado dentro de este mismo repositorio, siguiendo lo acordado el
+2026-10-06 (se documenta aqui en vez de llevarlo a un repositorio propio en `cnie-es`).
 
 Las modificaciones estan licenciadas bajo la misma **EUPL-1.2** que la obra original.
 

@@ -1,6 +1,6 @@
-diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (edval-conector)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (edval-conector)"
 --- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
-+++ vendor/tier1-gateway (simpl-participant-connector-dist)
++++ vendor/tier1-gateway (edval-conector)
 @@ -1,24 +1,6 @@
  apiVersion: v2
 -name: tier1-gateway
@@ -28,9 +28,9 @@ diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/i
 -# follow Semantic Versioning. They should reflect the version the application is using.
 -# It is recommended to use it with quotes.
 -appVersion: 2.16.0-rc.1379
-diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (edval-conector)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (edval-conector)"
 --- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
-+++ vendor/tier1-gateway (simpl-participant-connector-dist)
++++ vendor/tier1-gateway (edval-conector)
 @@ -3,14 +3,32 @@
  metadata:
    name: {{ .Chart.Name }}-env-configmap
@@ -70,9 +70,9 @@ diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/i
    GATEWAY_URL: {{ tpl (printf "%s%s" "https://" .Values.hostT1) . | quote }}
    USERSROLES_URL: {{ tpl .Values.usersRolesUrl . | quote }}
    KEYCLOAK_URL: {{ tpl .Values.keycloakUrl . | quote }}
-diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (edval-conector)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (edval-conector)"
 --- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
-+++ vendor/tier1-gateway (simpl-participant-connector-dist)
++++ vendor/tier1-gateway (edval-conector)
 @@ -14,7 +14,7 @@
      nginx.ingress.kubernetes.io/cors-allow-origin: {{ . | quote }}
      {{- end }}
@@ -93,9 +93,9 @@ diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/i
              pathType: ImplementationSpecific
              backend:
                service:
-diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (simpl-participant-connector-dist)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (simpl-participant-connector-dist)"
+diff -ru --label 'upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)' --label 'vendor/tier1-gateway (edval-conector)' "upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)" "vendor/tier1-gateway (edval-conector)"
 --- upstream/charts (code.europa.eu/simpl/simpl-open/development/iaa/tier1-gateway@07fb0b5)
-+++ vendor/tier1-gateway (simpl-participant-connector-dist)
++++ vendor/tier1-gateway (edval-conector)
 @@ -3,8 +3,8 @@
  # ------------------------------------------------------------------------------
  image:
