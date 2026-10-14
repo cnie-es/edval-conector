@@ -104,7 +104,8 @@
       ],
       "realmRoles": [
         "SD_PUBLISHER",
-        "SD_CONSUMER"
+        "SD_CONSUMER",
+        "ONBOARDER_M"
       ]
     }
   ],
