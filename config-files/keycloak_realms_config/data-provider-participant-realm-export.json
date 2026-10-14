@@ -1818,6 +1818,17 @@
     "xXSSProtection": "1; mode=block",
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
+  "smtpServer": {
+    "host": "${SMTP_HOST}",
+    "port": "${SMTP_PORT}",
+    "starttls": "${SMTP_STARTTLS}",
+    "ssl": "false",
+    "auth": "true",
+    "user": "${SMTP_USERNAME}",
+    "password": "${SMTP_PASSWORD}",
+    "from": "${SMTP_USERNAME}",
+    "fromDisplayName": "Espacio de datos Valle de la Lengua"
+  },
   "eventsEnabled": true,
   "eventsExpiration": 63072000,
   "eventsListeners": [
