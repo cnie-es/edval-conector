@@ -1,0 +1,233 @@
+{{- if .Values.roleIdentityAttributes.enabled }}
+{{- $mapping := toJson .Values.roleIdentityAttributes.mapping }}
+# Atributos de identidad de los roles del participante (users-roles).
+#
+# Es el paso que hasta ahora se hacia a mano en participant-fe-<ns>/users-roles/role ("Detalle del
+# rol" -> casillas -> Guardar), p. ej. SD_PUBLISHER -> DATA_PROVIDER_PUBLISHER + EDVAL_PARTICIPANT.
+#
+# Por que un CronJob y no un hook PostSync: users-roles solo acepta un atributo si el participante
+# ya lo tiene asignado (enabled + assignableToRoles + asignado al participante), y eso no ocurre
+# hasta que la authority firma el onboarding y llega la sincronizacion de atributos, que puede ser
+# horas o dias despues del despliegue. Cada pasada hace solo lo que falta; cuando termina deja
+# role-identity-attributes-state en done (con el hash del mapping) y las siguientes salen sin hacer
+# nada. Para forzar otra pasada: borrar ese ConfigMap. Si cambia el mapping se reaplica solo.
+#
+# Solo AÑADE: conserva los atributos que ya tenga el rol. Descarta (con aviso) los que la API
+# rechazaria, porque un solo codigo invalido hace fallar el PUT entero.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  # Sufijo -sa: el rol de OpenBao del openbao-init vendorizado solo admite ciertos patrones de nombre.
+  name: role-identity-attributes-sa
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: role-identity-attributes
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+rules:
+  # Solo para el ConfigMap de estado (kubectl apply hace get + create/patch).
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: role-identity-attributes
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: role-identity-attributes
+subjects:
+  - kind: ServiceAccount
+    name: role-identity-attributes-sa
+    namespace: {{ .Values.cluster.namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: role-identity-attributes-script
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  apply.sh: |
+    #!/bin/bash
+    set -uo pipefail
+    log(){ echo "$(date -u +%FT%TZ) $*"; }
+
+    # 1. Ya aplicado con este mismo mapping -> nada que hacer.
+    state=$(kubectl -n "$NAMESPACE" get configmap "$STATE_CM" -o jsonpath='{.data.status}/{.data.mappingHash}' 2>/dev/null)
+    if [ "$state" = "done/$MAPPING_HASH" ]; then log "atributos de roles ya aplicados"; exit 0; fi
+
+    # 2. Servicios listos.
+    for u in "$USERS_ROLES_URL" "$AUTH_PROVIDER_URL"; do
+      [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$u/actuator/health/liveness")" = "200" ] \
+        || { log "aun no listo: $u"; exit 0; }
+    done
+
+    # 3. Token client_credentials del client cli del realm participant (su service account tiene
+    #    T1UAR_M). El secreto se lee con el admin del master de Keycloak.
+    T=""
+    for base in "$KEYCLOAK_URL" "$KEYCLOAK_URL/auth"; do
+      mt=$(curl -s -m 15 "$base/realms/master/protocol/openid-connect/token" -d client_id=admin-cli \
+            -d username="$KC_ADMIN_USER" --data-urlencode password="$KC_ADMIN_PASSWORD" -d grant_type=password \
+            | jq -r '.access_token // empty')
+      [ -n "$mt" ] || continue
+      cid=$(curl -s -m 15 "$base/admin/realms/$KEYCLOAK_REALM/clients?clientId=$KEYCLOAK_CLIENT_ID" \
+            -H "Authorization: Bearer $mt" | jq -r '.[0].id // empty')
+      [ -n "$cid" ] || break
+      sec=$(curl -s -m 15 "$base/admin/realms/$KEYCLOAK_REALM/clients/$cid/client-secret" \
+            -H "Authorization: Bearer $mt" | jq -r '.value // empty')
+      T=$(curl -s -m 15 "$base/realms/$KEYCLOAK_REALM/protocol/openid-connect/token" -d grant_type=client_credentials \
+            -d client_id="$KEYCLOAK_CLIENT_ID" --data-urlencode client_secret="$sec" | jq -r '.access_token // empty')
+      break
+    done
+    [ -n "$T" ] || { log "sin token del client $KEYCLOAK_CLIENT_ID (keycloak aun no listo?)"; exit 0; }
+    api(){ curl -s -m 20 -H "Authorization: Bearer $T" "$@"; }
+
+    # 4. Atributos que el participante puede dar a sus roles. Hasta que la authority firma el
+    #    onboarding y llega la sincronizacion, faltan los del mapping y la API los rechazaria.
+    valid=$(api "$AUTH_PROVIDER_URL/tier1/v2/participant/identityAttributes" \
+            | jq -c '[.[] | select(.enabled and .assignableToRoles) | .code]' 2>/dev/null)
+    [ -n "$valid" ] || { log "no se pudieron leer los atributos del participante"; exit 0; }
+    missing=$(jq -rn --argjson m "$MAPPING" --argjson v "$valid" '[$m[][]] | unique - $v | join(" ")')
+    if [ -n "$missing" ]; then log "esperando onboarding/sincronizacion: el participante aun no tiene $missing"; exit 0; fi
+
+    # 5. Rol a rol: actuales + objetivo, sin los que la API rechazaria.
+    rc=0
+    for role in $(jq -r 'keys[]' <<<"$MAPPING"); do
+      target=$(jq -c --arg r "$role" '.[$r]' <<<"$MAPPING")
+      id=$(api "$USERS_ROLES_URL/tier1/v2/roles?code=$role" | jq -r --arg c "$role" '[.items[]? | select(.code == $c)][0].id // empty')
+      [ -n "$id" ] || { log "ERROR: no existe el rol $role"; rc=1; continue; }
+      cur=$(api "$USERS_ROLES_URL/tier1/v2/roles/$id/identityAttributes" | jq -c '[.[].code]' 2>/dev/null)
+      [ -n "$cur" ] || { log "ERROR: no se pudieron leer los atributos de $role"; rc=1; continue; }
+      want=$(jq -cn --argjson c "$cur" --argjson t "$target" --argjson v "$valid" '($c + $t) | unique | map(select(IN($v[])))')
+      dropped=$(jq -rn --argjson c "$cur" --argjson w "$want" '$c - $w | join(" ")')
+      [ -z "$dropped" ] || log "AVISO $role: se descartan $dropped (no asignables por el participante)"
+      if jq -en --argjson c "$cur" --argjson w "$want" '($c | sort) == ($w | sort)' >/dev/null; then
+        log "$role ya tiene $(jq -r 'join(" ")' <<<"$cur")"; continue
+      fi
+      code=$(api -o /tmp/put.out -w '%{http_code}' -X PUT -H 'Content-Type: application/json' \
+             "$USERS_ROLES_URL/tier1/v2/roles/$id/identityAttributes" -d "$(jq -c 'map({code: .})' <<<"$want")")
+      case "$code" in 200|204) ;; *) log "ERROR: PUT $role -> HTTP $code: $(head -c 500 /tmp/put.out)"; rc=1; continue ;; esac
+      now=$(api "$USERS_ROLES_URL/tier1/v2/roles/$id/identityAttributes" | jq -c '[.[].code]' 2>/dev/null)
+      if jq -en --argjson n "${now:-[]}" --argjson t "$target" '($t - $n) == []' >/dev/null; then
+        log "$role -> $(jq -r 'join(" ")' <<<"$now")"
+      else
+        log "ERROR: tras el PUT $role tiene ${now:-?}"; rc=1
+      fi
+    done
+    [ "$rc" -eq 0 ] || exit 1
+
+    # 6. Hecho.
+    kubectl -n "$NAMESPACE" create configmap "$STATE_CM" --from-literal=status=done \
+      --from-literal=mappingHash="$MAPPING_HASH" --dry-run=client -o yaml | kubectl apply -f - >/dev/null \
+      || { log "ERROR: no se pudo guardar $STATE_CM"; exit 1; }
+    log "atributos de roles aplicados"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: role-identity-attributes
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  schedule: {{ .Values.roleIdentityAttributes.schedule | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+            vault.security.banzaicloud.io/vault-addr: "https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
+            {{- with include "connector.vaultCaSecret" $ }}
+            vault.security.banzaicloud.io/vault-tls-secret: {{ . }}
+            {{- end }}
+            vault.security.banzaicloud.io/vault-role: {{ .Values.secrets.role }}
+            vault.security.banzaicloud.io/vault-env-image: "ghcr.io/bank-vaults/vault-env:v1.22.1"
+        spec:
+          restartPolicy: Never
+          serviceAccountName: role-identity-attributes-sa
+          automountServiceAccountToken: true
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - name: script
+              configMap:
+                name: role-identity-attributes-script
+            # vault-secrets-webhook deja /vault/ como unico montaje y se pierde el token del SA, que
+            # usa kubectl para el ConfigMap de estado. Se monta explicito (igual que realm-hardening).
+            - name: sa-token
+              projected:
+                sources:
+                  - serviceAccountToken:
+                      path: token
+                      expirationSeconds: 3600
+                  - configMap:
+                      name: kube-root-ca.crt
+                      items:
+                        - key: ca.crt
+                          path: ca.crt
+                  - downwardAPI:
+                      items:
+                        - path: namespace
+                          fieldRef:
+                            fieldPath: metadata.namespace
+          containers:
+            - name: apply
+              image: {{ .Values.roleIdentityAttributes.image | quote }}
+              command: ["/bin/bash", "/scripts/apply.sh"]
+              env:
+                - name: NAMESPACE
+                  value: {{ .Values.cluster.namespace | quote }}
+                - name: STATE_CM
+                  value: role-identity-attributes-state
+                - name: MAPPING
+                  value: {{ $mapping | quote }}
+                - name: MAPPING_HASH
+                  value: {{ $mapping | sha256sum | trunc 16 | quote }}
+                - name: USERS_ROLES_URL
+                  value: "http://users-roles.{{ .Values.cluster.namespace }}.svc.cluster.local:8080"
+                - name: AUTH_PROVIDER_URL
+                  value: "http://authentication-provider.{{ .Values.cluster.namespace }}.svc.cluster.local:8080"
+                - name: KEYCLOAK_URL
+                  value: "http://keycloak.{{ .Values.cluster.namespace }}.svc.cluster.local"
+                - name: KEYCLOAK_REALM
+                  value: participant
+                - name: KEYCLOAK_CLIENT_ID
+                  value: cli
+                - name: KC_ADMIN_USER
+                  value: admin
+                - name: KC_ADMIN_PASSWORD
+                  value: "vault:{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-keycloak#admin"
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                - name: sa-token
+                  mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+{{- end }}

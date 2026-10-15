@@ -265,6 +265,26 @@ After the deployment process is complete, a manual onboarding process of the par
 The steps are described in the document:
 https://code.europa.eu/simpl/simpl-open/development/iaa/documentation/-/blob/main/versioned_docs/2.5.x/user-manual/ONBOARD.md
 
+### Identity attributes of the roles
+
+Once onboarding is complete, the CronJob `role-identity-attributes` adds the configured identity
+attributes to the roles of the participant (the same as ticking them in
+`participant-fe-<namespace>.<domain>/users-roles/role` and saving):
+
+| Role | Identity attributes added |
+|---|---|
+| SD_PUBLISHER | DATA_PROVIDER_PUBLISHER, EDVAL_PARTICIPANT |
+| SD_CONSUMER | DATA_SEARCHER, EDVAL_PARTICIPANT |
+
+It runs every 5 minutes and does nothing until the participant has those attributes (i.e. until
+onboarding has finished). It only adds attributes, never removes those already in the role. When it is
+done it records it in the ConfigMap `role-identity-attributes-state` and later runs exit immediately.
+
+- Logs: `kubectl -n <namespace> logs job/<last role-identity-attributes-... job>`
+- Run it again: `kubectl -n <namespace> delete configmap role-identity-attributes-state`
+- Change the mapping or disable it: `roleIdentityAttributes.mapping` / `roleIdentityAttributes.enabled`
+  in the chart values (a new mapping is applied automatically).
+
 ### Tier2-proxy status
 
 Please keep in mind that until the agent is properly initialized, the tier2-proxy component will not work properly.
