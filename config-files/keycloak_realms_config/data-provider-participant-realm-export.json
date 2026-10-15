@@ -76,7 +76,7 @@
       "groups": []
     },
     {
-      "username": "admin.dataprovider",
+      "username": "${ADMIN_DATAPROVIDER_EMAIL}",
       "firstName": "${ADMIN_DATAPROVIDER_FIRSTNAME}",
       "lastName": "${ADMIN_DATAPROVIDER_LASTNAME}",
       "email": "${ADMIN_DATAPROVIDER_EMAIL}",
@@ -92,7 +92,7 @@
       ]
     },
     {
-      "username": "tecnico.dataprovider",
+      "username": "${TECHNICAL_EMAIL}",
       "firstName": "${TECHNICAL_FIRSTNAME}",
       "lastName": "${TECHNICAL_LASTNAME}",
       "email": "${TECHNICAL_EMAIL}",
