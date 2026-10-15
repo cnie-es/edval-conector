@@ -1,0 +1,21 @@
+# Seeding EDVAL de identity_attribute_roles para users-roles (mapeo acordado el 21/08). Lo monta la
+# Application de users-roles (templates/application.yaml) en /app/config/roleAttributes.json.
+#
+# Solo se aplica con la tabla VACIA (instalacion nueva). En un participante ya desplegado lo
+# completa el CronJob role-identity-attributes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: users-roles-role-attributes
+  namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  roleAttributes.json: |
+    [
+      { "role": "SD_CONSUMER",  "identityAttributes": ["DATA_SEARCHER", "EDVAL_PARTICIPANT"] },
+      { "role": "SD_PUBLISHER", "identityAttributes": ["DATA_PROVIDER_PUBLISHER", "EDVAL_PARTICIPANT"] },
+      { "role": "CATALOG_R",    "identityAttributes": ["DATA_SEARCHER", "EDVAL_PARTICIPANT"] },
+      { "role": "Ro-MU-A",      "identityAttributes": ["DATA_PROVIDER_PUBLISHER", "EDVAL_PARTICIPANT"] },
+      { "role": "Ro-Pa-A",      "identityAttributes": ["DATA_PROVIDER_PUBLISHER", "EDVAL_PARTICIPANT"] }
+    ]
