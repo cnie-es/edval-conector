@@ -648,6 +648,15 @@ signerTokenRefresh:
   schedule: 0 3 * * *
   deploymentName: signer
   image: docker.io/alpine/kubectl:1.35.2
+# Atributos de identidad que se AÑADEN a cada rol de users-roles cuando el participante ya los tiene
+# (tras el onboarding). Ver templates/role-identity-attributes-cronjob.yaml.
+roleIdentityAttributes:
+  enabled: true
+  schedule: "*/5 * * * *"
+  image: docker.io/alpine/k8s:1.35.2
+  mapping:
+    SD_PUBLISHER: [DATA_PROVIDER_PUBLISHER, EDVAL_PARTICIPANT]
+    SD_CONSUMER: [DATA_SEARCHER, EDVAL_PARTICIPANT]
 adminRealmAccess: public
 adminHost: ''
 adminIngressTarget: ''
