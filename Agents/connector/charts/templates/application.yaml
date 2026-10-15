@@ -774,6 +774,28 @@ spec:
         env:
         - name: KAFKA_USERSROLES
           value: "vault:{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.commonToolsNamespace }}-kafka-credentials#{{ .Values.cluster.namespace }}_usersroles"
+        # Seeding EDVAL de identity_attribute_roles (templates/users-roles-role-attributes-configmap.yaml).
+        # El configmap del chart upstream emite DATABASESEEDING_ROLE_IDENTITY_ATTRIBUTES_MAPPING_*,
+        # que NO enlazan con database-seeding.role-attributes-mapping (DBSeedingProperties): sin
+        # estas dos entraba el roleAttributes.default.json de SIMPL.
+        - name: DATABASESEEDING_ROLEATTRIBUTESMAPPING_ENABLED
+          value: "true"
+        - name: DATABASESEEDING_ROLEATTRIBUTESMAPPING_FILEPATH
+          value: "file:/app/config/roleAttributes.json"
+        # volumes/volumeMounts sustituyen la lista del chart: se repite spring-config (/config/).
+        volumes:
+        - name: spring-config
+          configMap:
+            name: users-roles-spring-configmap
+        - name: role-attributes
+          configMap:
+            name: users-roles-role-attributes
+        volumeMounts:
+        - name: spring-config
+          mountPath: /config/
+        - name: role-attributes
+          mountPath: /app/config
+          readOnly: true
         appConfig:
           notification:
             role-requests:

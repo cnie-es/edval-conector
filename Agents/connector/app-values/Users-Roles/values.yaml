@@ -18,7 +18,10 @@ databaseSeeding:
     # uncomment below if you want to specify your custom attributes, your json file path must start with 'file:'
     # if enabled=true and filePath is commented or empty the table will be initialized with the default seeding file.
     # You can find the default seeding file roleAttributes.default.json in samples/db-seeding/user-roles/0.8.x/
-    # Fichero custom de EDVAL montado por el chart (configmap users-roles-role-attributes) en /app/config.
+    # Fichero custom de EDVAL: lo monta templates/application.yaml (configmap users-roles-role-attributes
+    # de templates/users-roles-role-attributes-configmap.yaml) en /app/config, y alli mismo se fijan
+    # DATABASESEEDING_ROLEATTRIBUTESMAPPING_ENABLED/_FILEPATH con el nombre bueno (las que genera
+    # el chart upstream a partir de este bloque no enlazan con la propiedad de la app).
     # Mapeo acordado (21/08):
     #   CATALOG_R    -> DATA_SEARCHER + EDVAL_PARTICIPANT
     #   SD_CONSUMER  -> DATA_SEARCHER + EDVAL_PARTICIPANT
@@ -26,6 +29,6 @@ databaseSeeding:
     #   Ro-MU-A / Ro-Pa-A -> DATA_PROVIDER_PUBLISHER + EDVAL_PARTICIPANT
     #
     # OJO: este seeding SOLO se aplica sobre la tabla VACIA. En un participante ya
-    # desplegado no cambia nada: hay que tocar identity_attribute_roles a mano o
-    # re-desplegarlo desde cero.
+    # desplegado no cambia nada: lo completa el CronJob role-identity-attributes
+    # (templates/role-identity-attributes-cronjob.yaml) para los roles de su mapping.
     filePath: file:/app/config/roleAttributes.json
