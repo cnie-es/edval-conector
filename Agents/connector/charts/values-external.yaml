@@ -69,3 +69,10 @@ lbNetwork: cloud
 # nuestra, y no tienen acceso a la vlan123. Se fija explicitamente para que
 # ningun cambio del default les afecte.
 adminRealmAccess: public
+
+# Realm propio del conector externo: un único usuario administrador (todos los permisos de
+# ONBOARDER_M, T1UAR_M, SD_PUBLISHER y SD_CONSUMER juntos), en vez del admin+técnico del realm
+# por defecto. Es un fichero NUEVO en dataspace-config-files (no se toca el
+# data-provider-participant-realm-export.json que sigue usando el conector interno).
+configFiles:
+  realmExportPath: keycloak_realms_config/external-data-provider-participant-realm-export.json
