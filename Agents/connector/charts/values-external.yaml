@@ -76,3 +76,8 @@ adminRealmAccess: public
 # data-provider-participant-realm-export.json que sigue usando el conector interno).
 configFiles:
   realmExportPath: keycloak_realms_config/external-data-provider-participant-realm-export.json
+
+# Va con el realm de arriba: su unico usuario tiene el email como username, y el correo
+# de alta (UPDATE_PASSWORD) se le manda a el.
+keycloak:
+  singleAdminUser: true

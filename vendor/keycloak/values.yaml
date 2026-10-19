@@ -1352,6 +1352,8 @@ sendCredentialsEmail:
   redirectUri: ""
   # Usernames fijos del realm template (no el email: el realm NO tiene
   # registrationEmailAsUsername, pese a lo que se penso en un principio).
+  # El realm del conector EXTERNO si lo tiene y solo trae un usuario: ahi la lista
+  # es el email del admin, y la fija application.yaml con keycloak.singleAdminUser.
   usernames:
     - admin.dataprovider
     - tecnico.dataprovider
