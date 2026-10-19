@@ -219,6 +219,10 @@ keycloak:
     firstName: Tecnico
     lastName: Dataprovider
     email: tecnico.dataprovider@email.com
+  # true = el realm importado tiene un unico usuario (el admin) cuyo username es su email
+  # (registrationEmailAsUsername). Es el realm del conector externo; lo enciende
+  # values-external.yaml. Decide a quien manda el correo de alta el Job send-credentials-email.
+  singleAdminUser: false
   path: vendor/keycloak
   chart_name: keycloak
   targetRevision: 22.2.5

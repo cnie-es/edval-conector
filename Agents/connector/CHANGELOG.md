@@ -34,6 +34,18 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   enviar nada. Requiere `edval-gitops#169`, que replica el Secret al namespace
   del participante. Va con `dataspace-config-files#8`.
 
+#### Fixed
+- Correo de alta del conector externo: el Job `send-credentials-email` buscaba los
+  usuarios fijos `admin.dataprovider` y `tecnico.dataprovider`, que no existen en el
+  realm externo (un único usuario, con el email como username). No encontraba a nadie,
+  dejaba un `WARN` y terminaba en verde sin mandar nada.
+  - Nuevo `keycloak.singleAdminUser` (`false` por defecto, `true` en
+    `values-external.yaml`): con él, el correo se manda a `keycloak.adminUser.email`.
+  - La búsqueda del usuario es exacta (`exact=true`).
+  - El Job falla si no existe ninguno de los usuarios, en vez de acabar en verde.
+  - No se reenvía el correo a quien ya completó el alta (sin `requiredActions`). Antes
+    llegaba de nuevo en cada sync de la Application.
+
 ## [3.0.0] - 2026-02-25
 - Updated many components to implement Data Provider version 3.0.0.
 - SIMPL FE component separated into multiple FE components.
