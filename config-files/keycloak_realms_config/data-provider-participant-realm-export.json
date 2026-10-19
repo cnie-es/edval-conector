@@ -88,7 +88,10 @@
       ],
       "realmRoles": [
         "ONBOARDER_M",
-        "T1UAR_M"
+        "T1UAR_M",
+        "CATALOG_R",
+        "SD_PUBLISHER",
+        "SD_CONSUMER"
       ]
     },
     {
@@ -149,6 +152,13 @@
       {
         "name": "SD_CONSUMER",
         "description": "Tier-1 Role for Consumer",
+        "composite": false,
+        "clientRole": false,
+        "attributes": {}
+      },
+      {
+        "name": "CATALOG_R",
+        "description": "Tier-1 Role for reading the federated catalogue",
         "composite": false,
         "clientRole": false,
         "attributes": {}
