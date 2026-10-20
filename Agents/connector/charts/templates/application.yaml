@@ -661,11 +661,8 @@ spec:
           className: apisix
           annotations:
             kubernetes.io/ingress.class: apisix
-            {{- if or (.Values.tls).perHost (and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal)) }}
+            {{- if (.Values.tls).perHost }}
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
-            {{- if not (.Values.tls).perHost }}
-            acme.cert-manager.io/http01-edit-in-place: "true"
-            {{- end }}
             {{- end }}
             k8s.apisix.apache.org/proxy-body-size: 5m
             k8s.apisix.apache.org/proxy-buffering: "on"
@@ -1170,11 +1167,8 @@ spec:
           className: apisix
           annotations:
             kubernetes.io/ingress.class: apisix
-            {{- if or (.Values.tls).perHost (and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal)) }}
+            {{- if (.Values.tls).perHost }}
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
-            {{- if not (.Values.tls).perHost }}
-            acme.cert-manager.io/http01-edit-in-place: "true"
-            {{- end }}
             {{- end }}
             k8s.apisix.apache.org/proxy-body-size: 5m
             k8s.apisix.apache.org/proxy-buffering: "on"
@@ -1205,11 +1199,11 @@ spec:
   {{- end }}
   {{- if .Values.data_dashboard.enabled }}
   # Data Dashboard
-  # cnie-es/edc-data-dashboard publica su propio chart desde v1.0.4-edval (antes solo tenia el
-  # codigo de la app; el chart se le anadio en cnie-c1-apps/DataDashboard PR #24): ya no hace
-  # falta vendorizarlo.
+  # cnie-es/edc-data-dashboard publica su propio chart desde v1.0.4-edval: ya no hace falta
+  # vendorizarlo. v1.1.0-edval (currencies & policies) no cambia charts/ respecto a v1.0.4-edval.
+  # El tag del chart y imagesTags.dataDashboard van siempre juntos.
   - repoURL: https://github.com/cnie-es/edc-data-dashboard.git
-    targetRevision: v1.0.4-edval
+    targetRevision: v1.1.0-edval
     path: charts
     helm:
       valueFiles:
@@ -1226,11 +1220,8 @@ spec:
           className: apisix
           annotations:
             kubernetes.io/ingress.class: apisix
-            {{- if or (.Values.tls).perHost (and (not .Values.embeddedCommon.enabled) (not .Values.wildcardTlsExternal)) }}
+            {{- if (.Values.tls).perHost }}
             cert-manager.io/cluster-issuer: {{ .Values.cluster.issuer }}
-            {{- if not (.Values.tls).perHost }}
-            acme.cert-manager.io/http01-edit-in-place: "true"
-            {{- end }}
             {{- end }}
             k8s.apisix.apache.org/proxy-body-size: "5m"
             k8s.apisix.apache.org/proxy-buffer-size: "8k"
@@ -1452,12 +1443,12 @@ spec:
 
         profile: consumer
         appJarPath: "/home/simpluser/app.jar"
-        {{- if not .Values.embeddedCommon.enabled }}
-        # Solo participantes INTERNOS/core: el authentication-provider vive en el namespace del
-        # participante, dentro del cluster del core. En un externo (self-hosted, values-external.yaml)
-        # no se inyecta y el chart no renderiza la variable.
-        participantAuthApiBaseUrl: "http://authentication-provider.{{ .Values.cluster.namespace }}.svc.cluster.local:8080"
-        {{- end }}
+        # Identidad del participante (id + organization) con la que se etiquetan los registros de
+        # transferencias y contratos del clearing house. Sin ella el adapter no pone ningun nombre
+        # (consumerName/providerName). El authentication-provider vive en el propio namespace.
+        participant:
+          authApi:
+            baseUrl: "http://authentication-provider.{{ .Values.cluster.namespace }}.svc.cluster.local:8080"
 
         edcConnector:
           # apiKey real viene de OpenBao via /vault/secrets/config.txt (source en el command).

@@ -45,6 +45,27 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   - El Job falla si no existe ninguno de los usuarios, en vez de acabar en verde.
   - No se reenvía el correo a quien ya completó el alta (sin `requiredActions`). Antes
     llegaba de nuevo en cada sync de la Application.
+- Nombre del participante en el clearing house cuando el consumidor es el conector
+  externo: el `edc-connector-adapter-consumer` no recibía la URL de su
+  authentication-provider y mandaba los registros de transferencias y contratos sin
+  `consumerName`, `consumerParticipantId` ni `providerName`. En el clearing house se veía
+  el identificador en vez del nombre. Fallaban dos cosas: la URL solo se inyectaba en
+  participantes internos, y con la clave del chart vendorizado del conector
+  (`participantAuthApiBaseUrl`), no con la que lee el chart publicado
+  (`participant.authApi.baseUrl`). Ahora se inyecta siempre, con la clave buena.
+  Solo afecta a los registros nuevos.
+
+#### Changed
+- data-dashboard a `v1.1.0-edval` (currencies & policies), chart e imagen. El chart no
+  cambia respecto a `v1.0.4-edval`, así que los values son los mismos.
+
+#### Removed
+- `embeddedCommon.enabled` y `wildcardTlsExternal`. Este repositorio solo despliega
+  participantes externos, así que el common embebido (OpenBao, Kafka y vault webhook) se
+  levanta siempre y el dominio de la authority siempre se deriva de `projectStage` o de
+  `authorityDomainSuffix`. Los ingress de OpenBao embebido, catalogue-ui, sd-ui y
+  data-dashboard solo piden certificado a cert-manager con `tls.perHost: true`, que es lo
+  que ya hacían en un externo. Si un deployer sigue pasando `embeddedCommon`, se ignora.
 
 ## [3.0.0] - 2026-02-25
 - Updated many components to implement Data Provider version 3.0.0.

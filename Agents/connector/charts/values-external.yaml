@@ -6,9 +6,8 @@
 # su common (OpenBao Shamir + Kafka + vault_webhook) en el namespace del conector,
 # sin depender del common compartido del core.
 #
-# Cuando NO se aplica este overlay (modo INTERNO / core), el conector usa el common
-# compartido del cluster (cluster.commonToolsNamespace apunta al namespace common
-# central) — es el comportamiento por defecto de values.yaml (embeddedCommon.enabled=false).
+# Este repositorio solo despliega participantes externos: el common embebido no se
+# activa con ninguna bandera, el chart lo levanta siempre.
 #
 # Uso en el deployer (Argo Application → helm.valueFiles). Este overlay de UBICACIÓN va antes
 # que el de ROL (el rol es el último, para que un provider puro pueda desactivar chIngest):
@@ -23,14 +22,10 @@
 # para que los componentes apunten al Kafka/OpenBao LOCALES.
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Common embebido en el propio namespace del conector (self-hosted):
-embeddedCommon:
-  enabled: true
-
 # DOMINIO DE LA AUTHORITY: no hay que declararlo aqui.
 # Un externo tiene dominio propio (su domainSuffix) pero se onboarda contra la authority del core,
-# que vive en OTRO. Al poner embeddedCommon.enabled=true (justo arriba) se activa la derivacion de
-# templates/_helpers.tpl, que decide el dominio a partir del projectStage DE LA AUTHORITY:
+# que vive en OTRO. templates/_helpers.tpl decide el dominio a partir del projectStage DE LA
+# AUTHORITY:
 #
 #     projectStage: prod        -> vallelengua.es
 #     projectStage: dev o vacio -> example.invalid   (entornos no productivos on-prem)

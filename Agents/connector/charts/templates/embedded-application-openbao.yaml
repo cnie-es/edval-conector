@@ -1,7 +1,6 @@
-{{- if .Values.embeddedCommon.enabled }}
 # Common embebido en el conector: servidor OpenBao (Shamir) + openbao-init.
 # Portado de common_components/charts/templates/application-openbao.yaml.
-# Se activa solo con embeddedCommon.enabled=true (participante externo autocontenido).
+# Siempre activo: el participante externo es autocontenido y trae su propio common.
 # Sin Namespace aqui: lo crea el deployer (syncOptions CreateNamespace=true) o lo declara el
 # participante en su app-of-apps. Declararlo tambien aqui daba DOS duenos en ArgoCD: cada app
 # reescribe el tracking-id al sincronizar y la otra queda OutOfSync, alternandose sin fin.
@@ -184,4 +183,3 @@ spec:
         {{- if .Values.nodeSelector }}
         nodeSelector: {{- toYaml .Values.nodeSelector | nindent 10 }}
         {{- end }}
-{{- end }}
