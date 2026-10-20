@@ -566,14 +566,28 @@
   ],
   "localizationTexts": {
     "es": {
-      "executeActionsSubject": "Actualiza las credenciales de acceso a tu conector",
-      "executeActionsBody": "Se van a actualizar las credenciales de acceso a tu conector del Espacio de Datos Valle de la Lengua. Para completarlo, realiza las siguientes acciones: {3}. Abre el siguiente enlace para iniciar el proceso.\n\n{0}\n\nEste enlace caducará en {4}.\n\nSi no esperabas este mensaje, ignóralo (no se cambiará nada) o contacta con el equipo del Espacio de Datos.",
-      "executeActionsBodyHtml": "<p>Hola:</p><p>Se van a actualizar las <strong>credenciales de acceso a tu conector</strong> del Espacio de Datos Valle de la Lengua. Para completarlo, realiza las siguientes acciones:</p>{3}<p>Usa el botón que aparece a continuación para iniciar el proceso.</p><p>Este enlace caducará en {4}.</p><p>Si no esperabas este mensaje, ignóralo (no se cambiará nada) o contacta con el equipo del Espacio de Datos.</p>"
+      "executeActionsSubject": "Active su acceso al conector",
+      "executeActionsBody": "Su cuenta de acceso al conector del Espacio de Datos Valle de la Lengua ya ha sido creada. Para poder utilizarla, es necesario que complete las siguientes acciones: {3}.\n\nAbra el siguiente enlace para iniciar el proceso. Por motivos de seguridad, este enlace caducará en {4}.\n\n{0}\n\nSi no esperaba este mensaje, puede ignorarlo: no se realizará ningún cambio en su cuenta. Ante cualquier duda, póngase en contacto con el equipo del Espacio de Datos.",
+      "executeActionsBodyHtml": "<p>Su cuenta de acceso al conector del Espacio de Datos Valle de la Lengua ya ha sido creada. Para poder utilizarla, es necesario que complete las siguientes acciones:</p>{3}<p>Pulse el botón que aparece a continuación para iniciar el proceso. Por motivos de seguridad, este enlace caducará en {4}.</p><p>Si no esperaba este mensaje, puede ignorarlo: no se realizará ningún cambio en su cuenta. Ante cualquier duda, póngase en contacto con el equipo del Espacio de Datos.</p>",
+      "ednelEmailActionUpdateAccount": "Activar mi cuenta",
+      "requiredAction.UPDATE_PASSWORD": "Establecer su contraseña",
+      "requiredAction.CONFIGURE_TOTP": "Configurar el código de un solo uso (OTP)",
+      "ednelEmailGreeting": "Estimado/a:",
+      "ednelEmailGreetingNamed": "Estimado/a {0}:",
+      "ednelEmailSignOff": "Atentamente,",
+      "ednelEmailLinkFallback": "Si el botón no funciona, copie y pegue este enlace en su navegador:",
+      "ednelEmailAutomatedNotice": "Este es un mensaje automático. Por favor, no responda a este correo ni comparta datos sensibles a través de este canal."
     },
     "en": {
-      "executeActionsSubject": "Update your connector access credentials",
-      "executeActionsBody": "Your access credentials for your connector in the Valle de la Lengua Data Space are going to be updated. To complete it, perform the following actions: {3}. Open the link below to start the process.\n\n{0}\n\nThis link will expire in {4}.\n\nIf you were not expecting this message, ignore it (nothing will change) or contact the Data Space team.",
-      "executeActionsBodyHtml": "<p>Hello,</p><p>Your <strong>access credentials for your connector</strong> in the Valle de la Lengua Data Space are going to be updated. To complete it, perform the following actions:</p>{3}<p>Use the button below to start the process.</p><p>This link will expire in {4}.</p><p>If you were not expecting this message, ignore it (nothing will change) or contact the Data Space team.</p>"
+      "executeActionsSubject": "Activate your connector access",
+      "executeActionsBody": "Your access account for the connector of the Valle de la Lengua Data Space has been created. To be able to use it, you need to complete the following actions: {3}.\n\nOpen the link below to start the process. For security reasons, this link will expire in {4}.\n\n{0}\n\nIf you were not expecting this message, you can ignore it: no changes will be made to your account. If you have any questions, please contact the Data Space team.",
+      "executeActionsBodyHtml": "<p>Your access account for the connector of the Valle de la Lengua Data Space has been created. To be able to use it, you need to complete the following actions:</p>{3}<p>Click the button below to start the process. For security reasons, this link will expire in {4}.</p><p>If you were not expecting this message, you can ignore it: no changes will be made to your account. If you have any questions, please contact the Data Space team.</p>",
+      "ednelEmailActionUpdateAccount": "Activate my account",
+      "requiredAction.UPDATE_PASSWORD": "Set your password",
+      "requiredAction.CONFIGURE_TOTP": "Set up the one-time code (OTP)",
+      "ednelEmailGreeting": "Dear user,",
+      "ednelEmailGreetingNamed": "Dear {0},",
+      "ednelEmailSignOff": "Yours sincerely,"
     }
   },
   "webAuthnPolicyRpEntityName": "keycloak",
