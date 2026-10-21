@@ -1284,7 +1284,7 @@ spec:
   {{- if .Values.simpl_edc.enabled }}
   # Simpl EDC
   - repoURL: https://github.com/cnie-es/simpl-edc.git
-    targetRevision: 1.0.23-edval
+    targetRevision: 1.0.25-edval
     path: charts
     helm:
       releaseName: {{ .Values.simpl_edc.nameOverride }}
@@ -1338,7 +1338,7 @@ spec:
   # Simpl EDC (perfil consumer) - 2a instancia para el Agente hibrido.
   # Service simpl-edc-consumer-service (29xxx); DB propia <ns>_edc_consumer; mismo participante.
   - repoURL: https://github.com/cnie-es/simpl-edc.git
-    targetRevision: 1.0.23-edval
+    targetRevision: 1.0.25-edval
     path: charts
     helm:
       releaseName: {{ .Values.simpl_edc_consumer.nameOverride }}
