@@ -36,7 +36,7 @@ imagesTags:
   infrastructureBe: 1.3.4
   infrastructureFe: 1.2.1
   monitoring: 0.5.4
-  dataDashboard: v1.1.0-edval
+  dataDashboard: v1.1.1-edval
   contract: 2.9.2-edval
   stubs: 2.1.0
 argocd:

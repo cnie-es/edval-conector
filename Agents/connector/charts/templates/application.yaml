@@ -1200,10 +1200,11 @@ spec:
   {{- if .Values.data_dashboard.enabled }}
   # Data Dashboard
   # cnie-es/edc-data-dashboard publica su propio chart desde v1.0.4-edval: ya no hace falta
-  # vendorizarlo. v1.1.0-edval (currencies & policies) no cambia charts/ respecto a v1.0.4-edval.
+  # vendorizarlo. v1.1.0-edval (currencies & policies) y v1.1.1-edval (nginx.conf) no cambian
+  # charts/ respecto a v1.0.4-edval.
   # El tag del chart y imagesTags.dataDashboard van siempre juntos.
   - repoURL: https://github.com/cnie-es/edc-data-dashboard.git
-    targetRevision: v1.1.0-edval
+    targetRevision: v1.1.1-edval
     path: charts
     helm:
       valueFiles:

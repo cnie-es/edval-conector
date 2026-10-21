@@ -56,8 +56,10 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   Solo afecta a los registros nuevos.
 
 #### Changed
-- data-dashboard a `v1.1.0-edval` (currencies & policies), chart e imagen. El chart no
-  cambia respecto a `v1.0.4-edval`, así que los values son los mismos.
+- data-dashboard a `v1.1.1-edval`, chart e imagen: `v1.1.0-edval` (currencies & policies) más
+  el `nginx.conf` corregido, para que recargar en Mis activos (`/assets`) no redirija a
+  `http://<host>:8080`. El chart no cambia respecto a `v1.0.4-edval`, así que los values son
+  los mismos.
 
 #### Removed
 - `embeddedCommon.enabled` y `wildcardTlsExternal`. Este repositorio solo despliega
