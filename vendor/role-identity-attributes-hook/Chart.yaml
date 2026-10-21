@@ -1,0 +1,9 @@
+apiVersion: v2
+name: role-identity-attributes-hook
+description: >-
+  Hook PostSync de la Application grande del conector que asigna los atributos de identidad a los
+  roles del participante (SD_PUBLISHER, SD_CONSUMER...) cuando todo el conector esta sano. El pod lo
+  genera el chart Agents/connector (helper connector.roleIdentityAttributes.podTemplate), el mismo
+  que usa el CronJob role-identity-attributes.
+type: application
+version: 0.1.0

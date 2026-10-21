@@ -97,11 +97,23 @@ data:
 
     # 4. Atributos que el participante puede dar a sus roles. Hasta que la authority firma el
     #    onboarding y llega la sincronizacion, faltan los del mapping y la API los rechazaria.
-    valid=$(api "$AUTH_PROVIDER_URL/tier1/v2/participant/identityAttributes" \
-            | jq -c '[.[] | select(.enabled and .assignableToRoles) | .code]' 2>/dev/null)
-    [ -n "$valid" ] || { log "no se pudieron leer los atributos del participante"; exit 0; }
-    missing=$(jq -rn --argjson m "$MAPPING" --argjson v "$valid" '[$m[][]] | unique - $v | join(" ")')
-    if [ -n "$missing" ]; then log "esperando onboarding/sincronizacion: el participante aun no tiene $missing"; exit 0; fi
+    #    La sincronizacion con la authority NO es periodica: la dispara cada GET a
+    #    /v1/agent/identityAttributes. En un conector recien arrancado nadie la ha pedido aun, asi
+    #    que se pide aqui antes de comprobar. ATTR_RETRIES (hook PostSync) espera a que lleguen.
+    attempt=0
+    while :; do
+      curl -s -o /dev/null -m 30 "$AUTH_PROVIDER_URL/v1/agent/identityAttributes" || true
+      valid=$(api "$AUTH_PROVIDER_URL/tier1/v2/participant/identityAttributes" \
+              | jq -c '[.[] | select(.enabled and .assignableToRoles) | .code]' 2>/dev/null)
+      missing=""
+      [ -n "$valid" ] && missing=$(jq -rn --argjson m "$MAPPING" --argjson v "$valid" '[$m[][]] | unique - $v | join(" ")')
+      [ -n "$valid" ] && [ -z "$missing" ] && break
+      if [ "$attempt" -ge "${ATTR_RETRIES:-0}" ]; then
+        [ -n "$valid" ] || { log "no se pudieron leer los atributos del participante"; exit 0; }
+        log "esperando onboarding/sincronizacion: el participante aun no tiene $missing"; exit 0
+      fi
+      attempt=$((attempt + 1)); sleep "${ATTR_RETRY_SECONDS:-20}"
+    done
 
     # 5. Rol a rol: actuales + objetivo, sin los que la API rechazaria.
     rc=0
@@ -153,81 +165,5 @@ spec:
       backoffLimit: 0
       activeDeadlineSeconds: 300
       template:
-        metadata:
-          annotations:
-            sidecar.istio.io/inject: "false"
-            vault.security.banzaicloud.io/vault-addr: "https://secrets-{{ .Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
-            {{- with include "connector.vaultCaSecret" $ }}
-            vault.security.banzaicloud.io/vault-tls-secret: {{ . }}
-            {{- end }}
-            vault.security.banzaicloud.io/vault-role: {{ .Values.secrets.role }}
-            vault.security.banzaicloud.io/vault-env-image: "ghcr.io/bank-vaults/vault-env:v1.22.1"
-        spec:
-          restartPolicy: Never
-          serviceAccountName: role-identity-attributes-sa
-          automountServiceAccountToken: true
-          securityContext:
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-            - name: script
-              configMap:
-                name: role-identity-attributes-script
-            # vault-secrets-webhook deja /vault/ como unico montaje y se pierde el token del SA, que
-            # usa kubectl para el ConfigMap de estado. Se monta explicito (igual que realm-hardening).
-            - name: sa-token
-              projected:
-                sources:
-                  - serviceAccountToken:
-                      path: token
-                      expirationSeconds: 3600
-                  - configMap:
-                      name: kube-root-ca.crt
-                      items:
-                        - key: ca.crt
-                          path: ca.crt
-                  - downwardAPI:
-                      items:
-                        - path: namespace
-                          fieldRef:
-                            fieldPath: metadata.namespace
-          containers:
-            - name: apply
-              image: {{ .Values.roleIdentityAttributes.image | quote }}
-              command: ["/bin/bash", "/scripts/apply.sh"]
-              env:
-                - name: NAMESPACE
-                  value: {{ .Values.cluster.namespace | quote }}
-                - name: STATE_CM
-                  value: role-identity-attributes-state
-                - name: MAPPING
-                  value: {{ $mapping | quote }}
-                - name: MAPPING_HASH
-                  value: {{ $mapping | sha256sum | trunc 16 | quote }}
-                - name: USERS_ROLES_URL
-                  value: "http://users-roles.{{ .Values.cluster.namespace }}.svc.cluster.local:8080"
-                - name: AUTH_PROVIDER_URL
-                  value: "http://authentication-provider.{{ .Values.cluster.namespace }}.svc.cluster.local:8080"
-                - name: KEYCLOAK_URL
-                  value: "http://keycloak.{{ .Values.cluster.namespace }}.svc.cluster.local"
-                - name: KEYCLOAK_REALM
-                  value: participant
-                - name: KEYCLOAK_CLIENT_ID
-                  value: cli
-                - name: KC_ADMIN_USER
-                  value: admin
-                - name: KC_ADMIN_PASSWORD
-                  value: "vault:{{ .Values.secrets.secretEngine }}/data/{{ .Values.cluster.namespace }}-keycloak#admin"
-              volumeMounts:
-                - name: script
-                  mountPath: /scripts
-                - name: sa-token
-                  mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-                  readOnly: true
-              resources:
-                requests:
-                  cpu: 10m
-                  memory: 32Mi
-                limits:
-                  memory: 128Mi
+        {{- include "connector.roleIdentityAttributes.podTemplate" (dict "root" $ "retries" 0) | nindent 8 }}
 {{- end }}

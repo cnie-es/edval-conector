@@ -419,6 +419,18 @@ spec:
         resources: {{- toYaml .Values.keycloak.resources | nindent 10 }}
           {{- end }}
         {{- end }}
+  {{- if .Values.roleIdentityAttributes.enabled }}
+  # Atributos de identidad de los roles, como hook PostSync de ESTA Application: corre al final, con
+  # todo sano (despues del onboarding), igual que el correo de alta. El CronJob del deployer
+  # (role-identity-attributes) se queda como respaldo por si la authority asigna los atributos tarde.
+  - repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/role-identity-attributes-hook
+    helm:
+      values: |
+        podTemplate:
+{{ include "connector.roleIdentityAttributes.podTemplate" (dict "root" $ "retries" 18) | indent 10 }}
+  {{- end }}
   {{- if .Values.sdtooling_api_be.enabled }}
   # SD Tooling API BE
   - repoURL: https://github.com/cnie-es/simpl-sdtooling-api-be.git
