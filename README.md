@@ -26,12 +26,10 @@ Example validation before deployment:
 
 ```sh
 helm lint Agents/connector/charts \
-  -f Agents/connector/charts/values-external.yaml \
-  --set embeddedCommon.enabled=true
+  -f Agents/connector/charts/values-external.yaml
 
 helm template edval-connector Agents/connector/charts \
   -f Agents/connector/charts/values-external.yaml \
-  --set embeddedCommon.enabled=true \
   --set project=participant \
   --set domainSuffix=participant.example \
   --set authorityDomainSuffix=authority.example

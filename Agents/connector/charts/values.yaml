@@ -36,7 +36,7 @@ imagesTags:
   infrastructureBe: 1.3.4
   infrastructureFe: 1.2.1
   monitoring: 0.5.4
-  dataDashboard: v1.0.4-edval
+  dataDashboard: v1.1.1-edval
   contract: 2.9.2-edval
   stubs: 2.1.0
 argocd:
@@ -53,13 +53,10 @@ secrets:
   role: "${SECRETROLE}"
   tlsSecret: ''
   caBundle: ''
-embeddedCommon:
-  enabled: false
-wildcardTlsExternal: false
 # TLS per-host con cert-manager (p. ej. Let's Encrypt via cluster.issuer) en los ingress que por
 # defecto esperan un wildcard: OpenBao embebido, catalogue-ui, sd-ui y data-dashboard. Con true,
 # cada uno pide su certificado <host>-tls con la anotacion cert-manager.io/cluster-issuer.
-# Requiere que wildcardTlsSecretName este vacio. Con false (defecto) no cambia nada.
+# Requiere que wildcardTlsSecretName este vacio. Con false (defecto) usan el wildcard.
 tls:
   perHost: false
 lbNetwork: public

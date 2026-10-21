@@ -1,26 +1,17 @@
 {{/*
 Dominio en el que se publican los hosts de la AUTHORITY (authority-be, authority-fe, tls-authority).
 
-INTERNO (embeddedCommon.enabled=false, el default):
-  el domainSuffix del propio participante. Comportamiento historico, intacto: un participante creado
-  en el mismo cluster que la authority comparte dominio con ella. Es el caso de prodddl, prodisbl y
-  prodcnie en c1, que NO reciben projectStage; por eso la derivacion va condicionada y no puede
-  afectarles.
+El participante externo tiene dominio propio, pero la authority vive en otro. Se deriva del
+projectStage DE LA AUTHORITY contra la que se onboarda (no el del participante):
 
-EXTERNO (embeddedCommon.enabled=true, lo activa values-external.yaml):
-  el participante tiene dominio propio, pero la authority vive en otro. Se deriva del projectStage
-  DE LA AUTHORITY contra la que se onboarda (no el del participante):
+    prod         -> vallelengua.es
+    dev o vacio  -> example.invalid      <- on-prem (vclusters). En el repo de GitHub: telefonicadev.com
 
-      prod         -> vallelengua.es
-      dev o vacio  -> example.invalid      <- on-prem (vclusters). En el repo de GitHub: telefonicadev.com
-
-  authorityDomainSuffix, si se define, manda sobre todo lo anterior: escape hatch para onboardarse
-  contra un dataspace distinto de este.
+authorityDomainSuffix, si se define, manda sobre todo lo anterior: escape hatch para onboardarse
+contra un dataspace distinto de este.
 */}}
 {{- define "connector.authorityDomain" -}}
-{{- if not .Values.embeddedCommon.enabled -}}
-{{- .Values.domainSuffix -}}
-{{- else if .Values.authorityDomainSuffix -}}
+{{- if .Values.authorityDomainSuffix -}}
 {{- .Values.authorityDomainSuffix -}}
 {{- else if eq (.Values.projectStage | default "") "prod" -}}
 vallelengua.es

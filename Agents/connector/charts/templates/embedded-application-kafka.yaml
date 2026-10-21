@@ -1,4 +1,3 @@
-{{- if .Values.embeddedCommon.enabled }}
 # Common embebido en el conector: Confluent Operator + Kafka (KRaft, SASL/PLAIN via OpenBao).
 # Portado de common_components/charts/templates/application.yaml (bloques confluent_operator + kafka).
 # sync-wave 3: después de openbao (1) y vswh (2) para que la inyección de secretos funcione.
@@ -122,4 +121,3 @@ spec:
           {{- if .Values.kafka.resources.kraftController }}
           resources: {{- toYaml .Values.kafka.resources.kraftController | nindent 12 }}
           {{- end }}
-{{- end }}

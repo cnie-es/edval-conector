@@ -1,4 +1,3 @@
-{{- if .Values.embeddedCommon.enabled }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -114,4 +113,3 @@ spec:
           }
 
           echo "=== Init job completed successfully! ==="
-{{- end }}

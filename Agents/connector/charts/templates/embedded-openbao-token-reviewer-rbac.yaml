@@ -1,4 +1,3 @@
-{{- if .Values.embeddedCommon.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -27,4 +26,3 @@ subjects:
 - kind: ServiceAccount
   name: openbao-sa
   namespace: {{ .Values.cluster.namespace }}
-{{- end }}
