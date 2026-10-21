@@ -1,0 +1,18 @@
+# PostSync: ArgoCD solo lo lanza cuando TODOS los recursos de la Application grande estan sanos,
+# o sea, con el onboarding hecho (tier2-proxy y el EDC no quedan sanos sin la credencial). Igual que
+# send-credentials-email. BeforeHookCreation: se recrea en cada sync; el script sale sin hacer nada
+# si role-identity-attributes-state ya esta en done con el mismo mapping.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: role-identity-attributes-hook
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # Despues de realm-hardening y send-credentials-email (peso 1).
+    argocd.argoproj.io/hook-weight: "2"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.activeDeadlineSeconds }}
+  template:
+{{ toYaml .Values.podTemplate | indent 4 }}
