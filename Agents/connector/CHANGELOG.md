@@ -35,6 +35,11 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   del participante. Va con `dataspace-config-files#8`.
 
 #### Fixed
+- EDC del conector externo a `cnie-es/simpl-edc` `1.0.25-edval` (chart e imagen). El chart fija
+  `-XX:MaxRAMPercentage=75` y trocea en partes de 64 MB las transferencias S3. Sin eso la JVM se quedaba
+  con el 25% de `limits.memory` (512 MB de heap con 2Gi) y metía el objeto entero en memoria, así que
+  las transferencias en las que el externo es proveedor morían con `OutOfMemoryError: Java heap space`,
+  y el OOM dejaba parado el gestor de negociaciones como proveedor (visto en extchparticipant).
 - Correo de alta del conector externo: el Job `send-credentials-email` buscaba los
   usuarios fijos `admin.dataprovider` y `tecnico.dataprovider`, que no existen en el
   realm externo (un único usuario, con el email como username). No encontraba a nadie,

@@ -32,7 +32,7 @@ imagesTags:
   sdUi: 1.8.0-edval
   signer: 0.0.1
   simplCatalogueClient: 2.3.2
-  simplEdc: 1.0.23-edval
+  simplEdc: 1.0.25-edval
   infrastructureBe: 1.3.4
   infrastructureFe: 1.2.1
   monitoring: 0.5.4
