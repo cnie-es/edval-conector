@@ -1697,9 +1697,13 @@ spec:
         - $values/Agents/connector/app-values/stubs/{{ . }}
         {{- end }}
       values: |
-        image:
-          registry: ghcr.io/cnie-es
-          tag: {{ .Values.imagesTags.stubs }}
+        # El chart de SIMPL lee deployment.image.*; con image.registry/image.tag se ignoraba
+        # imagesTags.stubs y quedaba su imagen por defecto (2.9.0). No hay imagen de stubs en
+        # cnie-es: la 2.1.0 de SIMPL tiene el mismo digest que la que usa el conector interno.
+        deployment:
+          image:
+            artifact: code.europa.eu:4567/simpl/simpl-open/cross-cutting/samples/contract-billing-stubs
+            tag: {{ .Values.imagesTags.stubs }}
   {{- if .Values.files.enabled }}
   # Files
   # Chart en vendor/simpl-files (el publico de code.europa.eu, con el arreglo dentro en vez de un parche en vivo).

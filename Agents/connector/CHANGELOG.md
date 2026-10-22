@@ -35,6 +35,14 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   del participante. Va con `dataspace-config-files#8`.
 
 #### Fixed
+- Pagos, igual que el conector interno:
+  - `paymentApproval.checkIntervalMs: 60000` en `contract-dataprovider` y `contract-consumer`. El chart
+    trae `3600000` por defecto, así que el externo tardaba hasta una hora en reaccionar a un pago confirmado;
+    el interno lo revisa cada minuto.
+  - `simpl-stubs` pasa a usar de verdad `imagesTags.stubs` (`2.1.0`). El chart de SIMPL lee
+    `deployment.image.artifact`/`tag`, y el dist le pasaba `image.registry`/`tag`, que ignoraba: corría su
+    imagen por defecto (`2.9.0`). La `2.1.0` de `code.europa.eu` es la misma imagen (mismo digest) que usa el
+    conector interno.
 - Activos de pago entre externos e internos: `deployment.paymentApproval.enabled: true` en
   `contract-dataprovider` y `contract-consumer` (`PAYMENT_APPROVAL_ENABLED=true`). El chart de
   `cnie-es/simpl-contract` lo deja a `false` por defecto, y con eso las negociaciones y transferencias de
