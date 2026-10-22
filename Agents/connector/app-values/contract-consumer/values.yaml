@@ -9,6 +9,10 @@ deployment:
     securityProtocol: SASL_PLAINTEXT
     sasl:
       mechanism: PLAIN
+  # Retiene las ofertas de pago hasta confirmar el pago (lado proveedor). Sin esto, las negociaciones de
+  # activos de pago entre externos e internos no avanzan. expirationDays/checkIntervalMs: defaults del chart.
+  paymentApproval:
+    enabled: true
   urls:
     stubs: 'http://simpl-stubs:8080'
     # Conector EDC HIBRIDO unico (api :19191); antes, instancia consumer dedicada (29xxx).

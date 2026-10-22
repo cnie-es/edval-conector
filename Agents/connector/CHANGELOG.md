@@ -35,6 +35,11 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   del participante. Va con `dataspace-config-files#8`.
 
 #### Fixed
+- Activos de pago entre externos e internos: `deployment.paymentApproval.enabled: true` en
+  `contract-dataprovider` y `contract-consumer` (`PAYMENT_APPROVAL_ENABLED=true`). El chart de
+  `cnie-es/simpl-contract` lo deja a `false` por defecto, y con eso las negociaciones y transferencias de
+  ofertas de pago publicadas por el externo no avanzaban. Es un mecanismo del lado proveedor: retiene la
+  oferta de pago hasta que se confirma el pago.
 - EDC del conector externo a `cnie-es/simpl-edc` `1.0.25-edval` (chart e imagen). El chart fija
   `-XX:MaxRAMPercentage=75` y trocea en partes de 64 MB las transferencias S3. Sin eso la JVM se quedaba
   con el 25% de `limits.memory` (512 MB de heap con 2Gi) y metía el objeto entero en memoria, así que
