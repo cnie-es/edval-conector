@@ -3,6 +3,10 @@ deployment:
   # desde imagesTags.contract (master values) via application.yaml -> deployment.image.tag.
   image:
     artifact: ghcr.io/cnie-es/contract
+  # Retiene las ofertas de pago hasta confirmar el pago (lado proveedor). Sin esto, las negociaciones de
+  # activos de pago entre externos e internos no avanzan. expirationDays/checkIntervalMs: defaults del chart.
+  paymentApproval:
+    enabled: true
   urls:
     stubs: 'http://simpl-stubs:8080'
     edc: 'http://simpl-edc-service:19191/api'
