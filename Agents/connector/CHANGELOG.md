@@ -35,6 +35,11 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   del participante. Va con `dataspace-config-files#8`.
 
 #### Fixed
+- `simpl-files` a la `1.2.0`, la misma que el conector interno (imagen de code.europa.eu con el mismo
+  digest que la que usa el interno). `vendor/simpl-files` pasa a ser el chart de SIMPL `v1.2.0` con los
+  ajustes del interno; el de `1.4.0` no sirve para esa imagen (puerto 80 y no 8080, otro usuario, ficheros
+  dentro de la imagen y no en un PVC). Además, `application.yaml` pasaba `image.registry`, que el chart
+  ignora; ahora es `image.repository`.
 - Pagos, igual que el conector interno:
   - `paymentApproval.checkIntervalMs: 60000` en `contract-dataprovider` y `contract-consumer`. El chart
     trae `3600000` por defecto, así que el externo tardaba hasta una hora en reaccionar a un pago confirmado;
