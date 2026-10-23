@@ -27,7 +27,7 @@ imagesTags:
   # securityContext de ese chart (runAsUser 101) nginx no puede escribir /tmp/nginx.pid.
   simplFiles: 1.2.0
   xfscAdvsearch: 1.22.0
-  contractConsumptionBe: 1.20.0-edval
+  contractConsumptionBe: 1.20.0-edval-v2
   edcConnectorAdapter: '1.14.1-edval'
   sdUi: 1.8.0-edval
   signer: 0.0.1
@@ -36,7 +36,7 @@ imagesTags:
   infrastructureBe: 1.3.4
   infrastructureFe: 1.2.1
   monitoring: 0.5.4
-  dataDashboard: v1.1.1-edval
+  dataDashboard: v1.1.2-edval
   contract: 2.9.2-edval
   stubs: 2.1.0
 argocd:
@@ -679,8 +679,14 @@ images:
 # Revision de los charts de cnie-es que antes tomaban values.branch (la rama del conector), que en
 # esos repos no existe: solo tienen estos tags.
 chartRevisions:
-  contractConsumptionBe: 1.20.0-edval
+  contractConsumptionBe: 1.20.0-edval-v2
   edcConnectorAdapter: 1.14.1-edval
+# Endpoint del S3 al que pertenecen las credenciales del participante (las de OpenBao
+# <ns>-edc-s3-credentials). Vacio = AWS S3. Otro proveedor compatible (MinIO, Ceph, Weka...): su URL,
+# p. ej. "https://s3.vallelengua.es". Lo usa contract-consumption-be para el destino AmazonS3 de las
+# descargas: desde 1.20.0-edval-v2 ya no se pide en el formulario. Se fija en el gitops del participante.
+s3:
+  endpointOverride: ""
 # Ingress publico del data plane del EDC (public-be-<ns>), que el chart cnie-es/simpl-edc no
 # trae. Opt-in para no cambiar los despliegues existentes. Ver templates/edc-public-ingress.yaml.
 edcPublicIngress:

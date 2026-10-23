@@ -79,6 +79,14 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   Solo afecta a los registros nuevos.
 
 #### Changed
+- data-dashboard `v1.1.2-edval` y contract-consumption-be `1.20.0-edval-v2`, las mismas que el conector
+  interno (chart e imagen de cnie-es). El chart de data-dashboard no cambia.
+  - contract-consumption-be ya no pide el endpoint S3 en el formulario de descarga (vulnerabilidad del
+    informe) y deja de enviar el email en el consumo de API. El endpoint se fija en despliegue, con la clave
+    nueva `s3.endpointOverride`: vacío para AWS S3 (el valor por defecto) y la URL del proveedor para otro S3
+    compatible (MinIO, Ceph, Weka...). Va en el gitops de cada participante.
+  - Quitado el `targetRevision: 1.20.0-edval` duplicado del chart de contract-consumption-be: ya mandaba
+    `chartRevisions.contractConsumptionBe`.
 - data-dashboard a `v1.1.1-edval`, chart e imagen: `v1.1.0-edval` (currencies & policies) más
   el `nginx.conf` corregido, para que recargar en Mis activos (`/assets`) no redirija a
   `http://<host>:8080`. El chart no cambia respecto a `v1.0.4-edval`, así que los values son
