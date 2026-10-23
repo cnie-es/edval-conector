@@ -1,6 +1,6 @@
 Comparacion entre el chart Helm publico de simpl-files en SIMPL-open
-(code.europa.eu/simpl/simpl-contributions/infratex/simpl-open/development/data1/simpl-files,
-carpeta charts/, tag v1.4.0, commit 51230cf8bcc4f7571beb722163108ea9206786ad, 2026-07-31)
+(code.europa.eu/simpl/simpl-open/development/data1/simpl-files, carpeta charts/,
+tag v1.2.0, commit d024a7340dd2d9b422193e9ed211252f4991cabd, 2025-11-05)
 y el chart vendorizado en este repo (vendor/simpl-files/).
 
 No hay historial git compartido entre ambos (este repo es un mono-repo con una copia
@@ -8,44 +8,60 @@ squash, no un fork con ancestria preservada), asi que este diff se genero compar
 directamente los ficheros descargados del API de GitLab contra el contenido actual de
 vendor/simpl-files/.
 
-diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts (code.europa.eu, v1.4.0, 51230cf8)' --label 'vendor/simpl-files (edval-conector)' "upstream/charts (code.europa.eu, v1.4.0, 51230cf8)" "vendor/simpl-files (edval-conector)"
---- upstream/charts (code.europa.eu, v1.4.0, 51230cf8)
+diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts (code.europa.eu, v1.2.0, d024a734)' --label 'vendor/simpl-files (edval-conector)' "upstream/charts (code.europa.eu, v1.2.0, d024a734)" "vendor/simpl-files (edval-conector)"
+--- upstream/charts (code.europa.eu, v1.2.0, d024a734)
 +++ vendor/simpl-files (edval-conector)
 @@ -1,7 +1,5 @@
  apiVersion: v1
 -name: simpl-files
-+appVersion: 1.4.0
++appVersion: 1.2.0
  description: Web Server Storage Files
 -
 -appVersion: ${PROJECT_RELEASE_VERSION}
 -
 -version: ${PROJECT_RELEASE_VERSION}
 +name: simpl-files
-+version: 1.4.0
-diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts (code.europa.eu, v1.4.0, 51230cf8)' --label 'vendor/simpl-files (edval-conector)' "upstream/charts (code.europa.eu, v1.4.0, 51230cf8)" "vendor/simpl-files (edval-conector)"
---- upstream/charts (code.europa.eu, v1.4.0, 51230cf8)
++version: 1.2.0
+diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts (code.europa.eu, v1.2.0, d024a734)' --label 'vendor/simpl-files (edval-conector)' "upstream/charts (code.europa.eu, v1.2.0, d024a734)" "vendor/simpl-files (edval-conector)"
+--- upstream/charts (code.europa.eu, v1.2.0, d024a734)
 +++ vendor/simpl-files (edval-conector)
-@@ -25,6 +25,9 @@
-       serviceAccountName: {{ if .Values.serviceAccount }}{{ .Values.serviceAccount.name | default .Release.Name }}{{ else }}{{ .Release.Name }}{{ end }}
- 
-       volumes:
-+        # /tmp escribible: nginx deja ahi su pid, y el contenedor corre como 101 sin permisos en la imagen.
-+        - name: tmp
-+          emptyDir: {}
-         - name: documents
-           persistentVolumeClaim:
-             claimName: {{ .Values.documentPvc.name }}
-@@ -47,6 +50,8 @@
-                 - ALL
- 
-           volumeMounts:
-+            - name: tmp
-+              mountPath: /tmp
-             - name: documents
-               mountPath: {{ .Values.documentPvc.mount.path }}
-               readOnly: true
-diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts (code.europa.eu, v1.4.0, 51230cf8)' --label 'vendor/simpl-files (edval-conector)' "upstream/charts (code.europa.eu, v1.4.0, 51230cf8)" "vendor/simpl-files (edval-conector)"
---- upstream/charts (code.europa.eu, v1.4.0, 51230cf8)
+@@ -15,6 +15,10 @@
+         app.kubernetes.io/name: {{ include "nginx-chart.name" . }}
+         app.kubernetes.io/instance: {{ .Release.Name }}
+     spec:
++      {{- with .Values.imagePullSecrets }}
++      imagePullSecrets:
++        {{- toYaml . | nindent 8 }}
++      {{- end }}
+       automountServiceAccountToken: false
+       securityContext:
+         runAsUser: 1000
+diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts (code.europa.eu, v1.2.0, d024a734)' --label 'vendor/simpl-files (edval-conector)' "upstream/charts (code.europa.eu, v1.2.0, d024a734)" "vendor/simpl-files (edval-conector)"
+--- upstream/charts (code.europa.eu, v1.2.0, d024a734)
++++ vendor/simpl-files (edval-conector)
+@@ -3,11 +3,13 @@
+ metadata:
+   name: {{ include "nginx-chart.fullname" . }}
+   namespace: {{ .Release.Namespace }}
++  {{- if and .Values.ingress.clusterIssuer (not (.Values.ingress.tls | default dict).secretName) }}
+   annotations:
+     cert-manager.io/cluster-issuer: {{ .Values.ingress.clusterIssuer }}
+     acme.cert-manager.io/http01-edit-in-place: "true"
+-    kubernetes.io/ingress.class: {{ .Values.ingress.ingressClass }}
++  {{- end }}
+ spec:
++  ingressClassName: {{ .Values.ingress.ingressClass }}
+   rules:
+   - host: {{ .Values.ingress.hostname }}
+     http:
+@@ -22,4 +24,4 @@
+   tls:
+     - hosts:
+         - {{ .Values.ingress.hostname }}
+-      secretName: {{ .Values.ingress.secretName }}
++      secretName: {{ (.Values.ingress.tls | default dict).secretName | default .Values.ingress.secretName }}
+diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts (code.europa.eu, v1.2.0, d024a734)' --label 'vendor/simpl-files (edval-conector)' "upstream/charts (code.europa.eu, v1.2.0, d024a734)" "vendor/simpl-files (edval-conector)"
+--- upstream/charts (code.europa.eu, v1.2.0, d024a734)
 +++ vendor/simpl-files (edval-conector)
 @@ -1,9 +1,9 @@
  replicaCount: 1
@@ -55,7 +71,20 @@ diff -ru -x LICENSE -x UPSTREAM.diff -x NOTICE.EDNEL.md --label 'upstream/charts
 +  repository: "code.europa.eu:4567/simpl/simpl-open/development/data1/simpl-files"
    pullPolicy: IfNotPresent
 -  tag: "${PROJECT_RELEASE_VERSION}"
-+  tag: "1.4.0"
++  tag: "1.2.0"
  
  service:
    type: ClusterIP
+@@ -21,4 +21,10 @@
+   hostname: files.dev.simpl-europe.eu
+   secretName: simpl-tls-files
+   clusterIssuer: dev-prod
+-  ingressClass: nginx
+\ No newline at end of file
++  # tls.secretName vacio = Let's Encrypt per-host (default, usa 'secretName'+clusterIssuer);
++  # con valor = usa ese Secret/SealedSecret TLS (p.ej. "vallelengua-tls") y NO emite con LE.
++  tls:
++    secretName: ""
++  ingressClass: apisix
++# Imagen publica de code.europa.eu: no hace falta pull secret.
++imagePullSecrets: []

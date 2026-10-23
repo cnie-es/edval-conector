@@ -6,8 +6,8 @@ metadata:
 spec:
   type: {{ .Values.service.type }}
   ports:
-    - port: {{ .Values.service.port | default 80 }}
-      targetPort: {{ .Values.service.port | default 80 }}
+    - port: {{ .Values.service.port }}
+      targetPort: 80
   selector:
     app.kubernetes.io/name: {{ include "nginx-chart.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}

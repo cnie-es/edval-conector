@@ -1706,7 +1706,7 @@ spec:
             tag: {{ .Values.imagesTags.stubs }}
   {{- if .Values.files.enabled }}
   # Files
-  # Chart en vendor/simpl-files (el publico de code.europa.eu, con el arreglo dentro en vez de un parche en vivo).
+  # Chart en vendor/simpl-files: el de SIMPL v1.2.0 con los ajustes del conector interno (ver NOTICE.EDNEL.md).
   - repoURL: {{ .Values.values.repo_URL }}
     targetRevision: {{ .Values.values.branch }}
     path: vendor/simpl-files
@@ -1716,8 +1716,10 @@ spec:
         - $values/Agents/connector/app-values/files/{{ . }}
         {{- end }}
       values: |
+        # El chart lee image.repository (image.registry se ignoraba). No hay imagen de simpl-files en
+        # cnie-es: se usa la de SIMPL, la misma (por digest) que corre el conector interno.
         image:
-          registry: ghcr.io/cnie-es
+          repository: code.europa.eu:4567/simpl/simpl-open/development/data1/simpl-files
           tag: {{ .Values.imagesTags.simplFiles }}
         ingress:
           # El chart trae nginx por defecto; aqui el unico controlador es APISIX.
