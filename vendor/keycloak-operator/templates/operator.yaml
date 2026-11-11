@@ -1,0 +1,176 @@
+{{- /*
+kubernetes.yml oficial de la 26.8.1 con los permisos de los controllers en Roles del
+namespace (upstream los declara como ClusterRoles, pero solo los enlaza con RoleBindings:
+con JOSDK_WATCH_CURRENT basta con Roles). La unica pieza de cluster es la ClusterRole de
+`config.openshift.io/ingresses` (el Operator la consulta para saber si esta en OpenShift),
+con el namespace en el nombre para que dos participantes no compartan objeto.
+*/ -}}
+{{- $ns := .Release.Namespace -}}
+{{- $labels := dict "app.kubernetes.io/name" "keycloak-operator" "app.kubernetes.io/version" .Chart.AppVersion -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak-operator
+  namespace: {{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+{{- with .Values.imagePullSecrets }}
+imagePullSecrets: {{- toYaml . | nindent 2 }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: keycloak-operator-clusterrole-{{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+rules:
+  - apiGroups: ["config.openshift.io"]
+    resources: ["ingresses"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: keycloak-operator-clusterrole-binding-{{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: keycloak-operator-clusterrole-{{ $ns }}
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-operator
+    namespace: {{ $ns }}
+{{- $crud := list "get" "list" "watch" "patch" "update" "create" "delete" }}
+{{- $roles := list
+  (dict "name" "keycloakrealmimportcontroller" "rules" (list
+    (dict "apiGroups" (list "k8s.keycloak.org") "resources" (list "keycloakrealmimports" "keycloakrealmimports/status" "keycloakrealmimports/finalizers") "verbs" $crud)
+    (dict "apiGroups" (list "batch") "resources" (list "jobs") "verbs" (list "create" "delete" "get" "list" "patch" "watch"))
+    (dict "apiGroups" (list "") "resources" (list "secrets") "verbs" (list "create" "delete" "get" "list" "patch" "update" "watch"))))
+  (dict "name" "keycloaksamlclientcontroller" "rules" (list
+    (dict "apiGroups" (list "k8s.keycloak.org") "resources" (list "keycloaksamlclients" "keycloaksamlclients/status" "keycloaksamlclients/finalizers") "verbs" $crud)))
+  (dict "name" "keycloakoidcclientcontroller" "rules" (list
+    (dict "apiGroups" (list "k8s.keycloak.org") "resources" (list "keycloakoidcclients" "keycloakoidcclients/status" "keycloakoidcclients/finalizers") "verbs" $crud)))
+  (dict "name" "keycloakcontroller" "rules" (list
+    (dict "apiGroups" (list "k8s.keycloak.org") "resources" (list "keycloaks" "keycloaks/status" "keycloaks/finalizers") "verbs" $crud)
+    (dict "apiGroups" (list "") "resources" (list "services") "verbs" (list "create" "delete" "get" "list" "patch" "update" "watch"))
+    (dict "apiGroups" (list "monitoring.coreos.com") "resources" (list "servicemonitors") "verbs" (list "create" "delete" "get" "list" "patch" "update" "watch"))
+    (dict "apiGroups" (list "networking.k8s.io") "resources" (list "networkpolicies" "ingresses") "verbs" (list "create" "delete" "get" "list" "patch" "update" "watch"))
+    (dict "apiGroups" (list "apps") "resources" (list "statefulsets") "verbs" (list "create" "delete" "get" "list" "patch" "update" "watch"))
+    (dict "apiGroups" (list "") "resources" (list "secrets") "verbs" (list "create" "delete" "get" "list" "watch"))
+    (dict "apiGroups" (list "") "resources" (list "configmaps") "verbs" (list "get" "list" "watch"))
+    (dict "apiGroups" (list "") "resources" (list "pods") "verbs" (list "list"))
+    (dict "apiGroups" (list "") "resources" (list "pods/log") "verbs" (list "get"))))
+}}
+{{- range $roles }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .name }}-role
+  namespace: {{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+rules: {{- toYaml .rules | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .name }}-role-binding
+  namespace: {{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .name }}-role
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-operator
+    namespace: {{ $ns }}
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keycloak-operator-view
+  namespace: {{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-operator
+    namespace: {{ $ns }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-operator
+  namespace: {{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: keycloak-operator
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak-operator
+  namespace: {{ $ns }}
+  labels: {{- toYaml $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak-operator
+  template:
+    metadata:
+      labels: {{- toYaml $labels | nindent 8 }}
+    spec:
+      serviceAccountName: keycloak-operator
+      terminationGracePeriodSeconds: 10
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: keycloak-operator
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          env:
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: kc.operator.keycloak.image
+              value: {{ .Values.keycloakImage | quote }}
+            - name: RELATED_IMAGE_KEYCLOAK
+              value: {{ .Values.keycloakImage | quote }}
+            {{- range list "KEYCLOAKREALMIMPORTCONTROLLER" "KEYCLOAKSAMLCLIENTCONTROLLER" "KEYCLOAKCONTROLLER" "KEYCLOAKOIDCCLIENTCONTROLLER" }}
+            - name: QUARKUS_OPERATOR_SDK_CONTROLLERS_{{ . }}_NAMESPACES
+              value: JOSDK_WATCH_CURRENT
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          {{- range $probe, $path := dict "livenessProbe" "live" "readinessProbe" "ready" "startupProbe" "started" }}
+          {{ $probe }}:
+            httpGet:
+              path: /q/health/{{ $path }}
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+          {{- end }}
+          {{- with .Values.resources }}
+          resources: {{- toYaml . | nindent 12 }}
+          {{- end }}

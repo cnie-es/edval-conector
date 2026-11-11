@@ -1,0 +1,49 @@
+{{- if and .Values.keycloakOperator.enabled .Values.keycloakOperator.embeddedOperator.enabled }}
+{{- /*
+Keycloak Operator 26.8.1 del participante (vendor/keycloak-operator), en su mismo
+namespace y vigilando solo ese namespace. En el core on-prem el Operator lo pone la
+plataforma (<env>common-keycloak-operator, cluster-wide); un externo no lo tiene.
+Ola 1: las CRDs y el Operator tienen que estar antes que el CR Keycloak (ola 2).
+*/ -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: "{{ .Values.argocd.appname }}-keycloak-operator"
+  namespace: {{ .Values.argocd.namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  project: {{ .Values.project }}
+  destination:
+    server: {{ .Values.cluster.address }}
+    namespace: {{ .Values.cluster.namespace }}
+  source:
+    repoURL: {{ .Values.values.repo_URL }}
+    targetRevision: {{ .Values.values.branch }}
+    path: vendor/keycloak-operator
+    helm:
+      values: |
+        image: {{ .Values.keycloakOperator.embeddedOperator.image | quote }}
+        keycloakImage: {{ .Values.keycloakOperator.image | quote }}
+        installCRDs: {{ .Values.keycloakOperator.embeddedOperator.installCRDs }}
+        {{- if .Values.nodeSelector }}
+        nodeSelector: {{- toYaml .Values.nodeSelector | nindent 10 }}
+        {{- end }}
+        {{- if eq .Values.resourcePreset "low" }}
+        resources:
+          requests:
+            cpu: "0"
+            memory: "0"
+          limits:
+            memory: 450Mi
+        {{- end }}
+{{- end }}

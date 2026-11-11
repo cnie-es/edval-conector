@@ -207,6 +207,31 @@ redis_commander:
       memory: 512Mi
   valueFiles:
   - values.yaml
+# Keycloak 26.8.1 con el Keycloak Operator (CR participant-op), en sustitucion del
+# StatefulSet Bitnami 26.3.2 (CVEs). Con enabled=false (default) el render no cambia.
+#   enabled=true, cutover=false -> Operator + CR en paralelo sobre la BD
+#     <ns>_keycloak_op (la crea el operador de Postgres), sin exponerse.
+#   enabled=true, cutover=true  -> el Service `keycloak` apunta al CR y desaparece el
+#     StatefulSet Bitnami. tier1 /auth, users-roles, realm-hardening y correo de alta igual.
+# Sin ESO: los Secrets del CR los crea un Job con vault-env (vendor/keycloak
+# operator-secrets-job.yaml) desde el OpenBao del conector.
+# OJO: pg_cluster.targetRevision tiene que apuntar a una version de este repo que ya
+# tenga keycloakOperatorDb (si no, el usuario <ns>_keycloak_op no se crea y el CR no arranca).
+keycloakOperator:
+  enabled: false
+  cutover: false
+  name: participant-op
+  image: quay.io/keycloak/keycloak:26.8.1
+  instances: 1
+  # Operator embebido (vendor/keycloak-operator), acotado al namespace del participante.
+  # enabled=false si el cluster ya tiene un Operator que vigila este namespace.
+  # installCRDs=false si las CRDs ya estan (otro participante en el mismo cluster).
+  embeddedOperator:
+    enabled: true
+    installCRDs: true
+    image: quay.io/keycloak/keycloak-operator:26.8.1
+  # Vacio = keycloak.resources.
+  resources: {}
 keycloak:
   adminUser:
     firstName: Admin

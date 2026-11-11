@@ -12,6 +12,24 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
 ### No publicado
 
 #### Added
+- Keycloak 26.8.1 con el Keycloak Operator (`keycloakOperator.enabled` / `cutover`), en
+  sustitución del StatefulSet Bitnami 26.3.2 (CVEs). Es el mismo CR `participant-op` que el
+  conector interno (simpl-participant-connector #87), pero sin añadir prerrequisitos al
+  participante (ni ESO ni un Operator de plataforma):
+  - `vendor/keycloak-operator`: es el Operator 26.8.1 oficial, acotado al namespace del
+    participante (`JOSDK_WATCH_CURRENT`, Roles en vez de ClusterRoles compartidas). Lo
+    despliega la Application `<ns>-keycloak-operator` en la ola 1. Las CRDs llevan
+    `Prune=false,Delete=false` y se pueden apagar con `embeddedOperator.installCRDs`.
+  - BD `<ns>_keycloak_op`: la crea el operador de Postgres (`keycloakOperatorDb` en
+    `vendor/postgres-cluster`), y el CR usa directamente su Secret.
+  - Admin y token de config-files: un Job con vault-env (`operator-secrets-job.yaml`, hook
+    Sync) los vuelca desde el OpenBao del conector a Secrets.
+  - `vendor/keycloak`: guardas de cutover, CR y ExternalSecrets copiados del interno
+    (`secretsSource: eso|job`; aquí `job`), e imágenes públicas (quay.io).
+  - Con `enabled=false` (por defecto) el render es idéntico al anterior.
+  - Procedimiento (alta nueva y migración de un participante existente) en
+    `documents/deployment-guide`. Requiere que `pg_cluster.targetRevision` apunte a esta
+    versión.
 - `keycloak.adminUser` (`firstName`, `lastName`, `email`): la
   identidad del usuario admin del participante se puede fijar por participante
   desde el gitops (`participantOverrides.<ns>.adminUser`), en vez de la

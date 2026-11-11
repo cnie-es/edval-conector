@@ -1,0 +1,15 @@
+{{- if .Values.installCRDs }}
+{{- /*
+CRDs oficiales de la 26.8.1, tal cual (files/). Van con .Files.Get y no como plantillas
+para no interpretar su contenido. Las cuatro hacen falta: el Operator arranca los cuatro
+controllers y, si falta una CRD, el informer muere al arrancar con "Not Found".
+Prune=false,Delete=false: borrar una CRD borra todos sus CR (el Keycloak del participante),
+asi que no se borran ni al podar ni al borrar esta Application.
+*/ -}}
+{{- range list "keycloaks" "keycloakrealmimports" "keycloakoidcclients" "keycloaksamlclients" }}
+---
+{{- $crd := $.Files.Get (printf "files/%s.k8s.keycloak.org-v1.yml" .) | fromYaml }}
+{{- $_ := set $crd.metadata "annotations" (merge (default dict $crd.metadata.annotations) (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false,ServerSideApply=true" "argocd.argoproj.io/sync-wave" "-1")) }}
+{{ toYaml $crd }}
+{{- end }}
+{{- end }}

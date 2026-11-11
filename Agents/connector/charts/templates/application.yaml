@@ -216,6 +216,85 @@ spec:
                 - {{ .Values.adminHost | quote }}
               secretName: private-ca-tls
         {{- end }}
+        {{- with .Values.keycloakOperator }}
+        {{- if .enabled }}
+        {{- /* Keycloak Operator 26.8.1 (vendor/keycloak, operator.*), el mismo CR que el
+               conector interno (simpl-participant-connector #87). Los valores salen de lo
+               mismo que usa el Bitnami de arriba/abajo, para que ambos sirvan el mismo
+               realm. Diferencias con el interno, porque un externo no tiene ESO:
+                 - BD <ns>_keycloak_op y su Secret los crea el operador de Postgres
+                   (keycloakOperatorDb en application-postgres.yaml);
+                 - admin y token de config-files los vuelca a Secrets un Job con vault-env
+                   (secretsSource=job) desde el OpenBao del conector. */}}
+        {{- $kcHost := printf "participant-be-%s.%s" $.Values.namespaceTag.dataprovider $.Values.domainSuffix }}
+        {{- $fe := list "participant-fe" "catalogue-ui" "sd-ui" "infrastructure-fe" "data-dashboard" }}
+        {{- $db := $.Values.cluster.namespace | replace "-" "_" }}
+        operator:
+          enabled: true
+          cutover: {{ .cutover | default false }}
+          name: {{ .name | default "participant-op" }}
+          image: {{ .image | default "quay.io/keycloak/keycloak:26.8.1" | quote }}
+          instances: {{ .instances | default 1 }}
+          secretsSource: job
+          adminUsername: admin
+          hostname: "https://{{ $kcHost }}/auth"
+          {{- if eq ($.Values.adminRealmAccess | default "public") "internal" }}
+          adminHostname: "https://{{ $.Values.adminHost }}"
+          {{- end }}
+          db:
+            host: "pg-cluster.{{ $.Values.cluster.namespace }}.svc.cluster.local"
+            database: {{ $db }}_keycloak_op
+            # Secret del operador de Postgres (Zalando: "_" -> "-" en el nombre del usuario).
+            secretName: "{{ $db | replace "_" "-" }}-keycloak-op.pg-cluster.credentials.postgresql.acid.zalan.do"
+          secretsJob:
+            adminPassword: "vault:{{ $.Values.secrets.secretEngine }}/data/{{ $.Values.cluster.namespace }}-keycloak#admin"
+            {{- with $.Values.configFiles.tokenRef }}
+            configFilesToken: {{ . | quote }}
+            {{- end }}
+            vault:
+              addr: "https://secrets-{{ $.Values.namespaceTag.common }}.{{ include "connector.internalDomain" $ }}"
+              {{- with include "connector.vaultCaSecret" $ }}
+              tlsSecret: {{ . }}
+              {{- end }}
+              role: {{ $.Values.secrets.role }}
+              envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
+          realm:
+            exportUrl: "{{ $.Values.configFiles.baseUrl }}/{{ $.Values.configFiles.realmExportPath }}"
+            authenticatorUrl: "{{ $.Values.configFiles.baseUrl }}/{{ $.Values.configFiles.authenticatorPath }}"
+            themeUrl: "{{ $.Values.configFiles.baseUrl }}/{{ $.Values.configFiles.themePath }}"
+            insecureTls: {{ $.Values.configFiles.insecureTls | default false }}
+            redirectUris: '[ {{ range $i, $p := $fe }}{{ if $i }},{{ end }}"https://{{ $p }}-{{ $.Values.namespaceTag.dataprovider }}.{{ $.Values.domainSuffix }}/*"{{ end }} ]'
+            smtpFromFallback: "noreply@{{ $.Values.domainSuffix }}"
+            # El realm del externo trae un solo usuario: no hay nada que fusionar.
+            mergeUsers: {{ not $.Values.keycloak.singleAdminUser }}
+            # Igual que el Bitnami: Secret notification-smtp (SealedSecret del participante).
+            smtp:
+              mode: secret
+              secretName: notification-smtp
+            adminUser: {{- toYaml $.Values.keycloak.adminUser | nindent 14 }}
+            technicalUser: {{- toYaml $.Values.keycloak.technicalUser | nindent 14 }}
+          extraEnv:
+            - name: USERS_ROLES_BASE_URL
+              value: "http://users-roles.{{ $.Values.cluster.namespace }}.svc.cluster.local:8080"
+            - name: KEYCLOAK_BASE_URL
+              value: "https://{{ $kcHost }}/auth"
+            - name: AUTHENTICATION_PROVIDER_BASE_URL
+              value: "http://authentication-provider.{{ $.Values.cluster.namespace }}.svc.cluster.local:8080"
+            - name: REALM
+              value: "participant"
+            # Ver EDNEL_EMAIL_ASSET_BASE_URL del Bitnami, mas abajo.
+            - name: EDNEL_EMAIL_ASSET_BASE_URL
+              value: "https://vallelengua.es"
+          {{- if ne $.Values.resourcePreset "low" }}
+          {{- with .resources | default $.Values.keycloak.resources }}
+          resources: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with $.Values.nodeSelector }}
+          nodeSelector: {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
         extraEnvVars:
         - name: KC_HOSTNAME_ADMIN
         {{- if eq (.Values.adminRealmAccess | default "public") "internal" }}

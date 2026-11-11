@@ -71,3 +71,6 @@ spec:
         {{- end }}
         providerList:
           - {{ .Values.cluster.namespace }}
+        {{- if .Values.keycloakOperator.enabled }}
+        keycloakOperatorDb: true
+        {{- end }}

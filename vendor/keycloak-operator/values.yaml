@@ -1,0 +1,24 @@
+# Keycloak Operator 26.8.1 embebido en el conector externo.
+#
+# Son los manifiestos oficiales de github.com/keycloak/keycloak-k8s-resources (tag 26.8.1,
+# kubernetes/), los mismos que despliega la plataforma on-prem (governance-authority-simpl
+# installation/keycloak-operator/26.8.1), con tres cambios:
+#   - vigila SOLO su namespace (JOSDK_WATCH_CURRENT, el default de upstream);
+#   - los permisos de los controllers van en Roles del namespace y no en ClusterRoles
+#     compartidas: dos participantes en el mismo cluster no se pisan los objetos;
+#   - las CRDs se pueden apagar (installCRDs=false) si el cluster ya las tiene, p. ej.
+#     porque otro participante o la plataforma ya instalo el Operator.
+image: quay.io/keycloak/keycloak-operator:26.8.1
+# Imagen de Keycloak por defecto del Operator (el CR del participante fija la suya).
+keycloakImage: quay.io/keycloak/keycloak:26.8.1
+imagePullPolicy: IfNotPresent
+imagePullSecrets: []
+installCRDs: true
+resources:
+  requests:
+    cpu: 300m
+    memory: 450Mi
+  limits:
+    cpu: 700m
+    memory: 450Mi
+nodeSelector: {}

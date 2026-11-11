@@ -59,6 +59,12 @@ spec:
     {{ $db }}_keycloak:
     - superuser
     - createdb
+    {{- if $.Values.keycloakOperatorDb }}
+    # BD del Keycloak 26.8.1 del Operator (CR participant-op). Sin superuser: le basta con
+    # ser dueno de su BD. El Secret <ns>-keycloak-op.pg-cluster.credentials... que genera el
+    # operador lo usa directamente el CR (sin ESO ni OpenBao).
+    {{ $db }}_keycloak_op: []
+    {{- end }}
     {{ $db }}_usersroles:
     - superuser
     - createdb
@@ -85,6 +91,12 @@ spec:
     {{ $db }}_keycloak:
     - superuser
     - createdb
+    {{- if $.Values.keycloakOperatorDb }}
+    # BD del Keycloak 26.8.1 del Operator (CR participant-op). Sin superuser: le basta con
+    # ser dueno de su BD. El Secret <ns>-keycloak-op.pg-cluster.credentials... que genera el
+    # operador lo usa directamente el CR (sin ESO ni OpenBao).
+    {{ $db }}_keycloak_op: []
+    {{- end }}
     {{ $db }}_usersroles:
     - superuser
     - createdb
@@ -131,6 +143,9 @@ spec:
     {{- range .Values.consumerList }}
     {{- $db := . | replace "-" "_" }}
     {{ $db }}_keycloak: {{ $db }}_keycloak
+    {{- if $.Values.keycloakOperatorDb }}
+    {{ $db }}_keycloak_op: {{ $db }}_keycloak_op
+    {{- end }}
     {{ $db }}_usersroles: {{ $db }}_usersroles
     {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
     {{ $db }}_edc: {{ $db }}_edc
@@ -140,6 +155,9 @@ spec:
     {{- range .Values.providerList }}
     {{- $db := . | replace "-" "_" }}
     {{ $db }}_keycloak: {{ $db }}_keycloak
+    {{- if $.Values.keycloakOperatorDb }}
+    {{ $db }}_keycloak_op: {{ $db }}_keycloak_op
+    {{- end }}
     {{ $db }}_usersroles: {{ $db }}_usersroles
     {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
     {{ $db }}_edc: {{ $db }}_edc
