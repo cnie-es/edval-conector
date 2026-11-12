@@ -22,6 +22,12 @@ already provide Kubernetes, Helm, Argo CD, cert-manager and a suitable default
 StorageClass. Use an immutable release tag and apply the external overlay after
 the base values. Apply a role overlay last when the participant is not hybrid.
 
+The cluster must also offer a **ReadWriteMany (RWX)** StorageClass, such as an
+NFS provisioner. The 1Gi PVC `nfs-storage-pvc-sd` holds the Self-Description
+schemas and shapes and is mounted at the same time by `sd-creation-wizard-api`
+and `xfsc-advsearch-be`, so a ReadWriteOnce volume is not enough. These charts
+come unchanged from their public sources and always create and mount this PVC.
+
 Example validation before deployment:
 
 ```sh

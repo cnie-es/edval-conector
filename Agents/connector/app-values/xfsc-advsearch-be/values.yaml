@@ -1,5 +1,6 @@
 ---
 vaultEnvIdentifier: dev-int
+# Shared with sd-creation-wizard-api: the cluster must provide a ReadWriteMany (RWX) StorageClass.
 schemaVolumeClaim: nfs-storage-pvc-sd
 schemaPvcMountPath: "/data"
 authenticationProvider:

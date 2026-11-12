@@ -1,7 +1,8 @@
 serviceAccount:
   name: sdtooling-api-be-service-account
 
-# ID of persistentVolumeClaims associated with NFS Storage
+# ID of persistentVolumeClaims associated with NFS Storage.
+# Shared with xfsc-advsearch-be: the cluster must provide a ReadWriteMany (RWX) StorageClass.
 schemaVolumeClaim: nfs-storage-pvc-sd
 
 # configuration for connectivity between SD-Tooling-Api-Be and SD-Tooling-Api-Validation

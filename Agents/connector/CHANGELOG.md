@@ -11,6 +11,13 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
 
 ### No publicado
 
+#### Documentation
+- Requisito de almacenamiento ReadWriteMany (RWX) documentado en el README, la
+  guía de despliegue y los values de `sd-creation-wizard-api` y `xfsc-advsearch-be`.
+  Los dos montan a la vez el PVC `nfs-storage-pvc-sd` (1Gi). Sus charts vienen
+  sin modificar de su origen público, así que el PVC se crea y se monta siempre.
+  El conector externo no cambia de comportamiento.
+
 #### Added
 - `keycloak.adminUser` (`firstName`, `lastName`, `email`): la
   identidad del usuario admin del participante se puede fijar por participante
