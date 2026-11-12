@@ -13,6 +13,9 @@ kind: ConfigMap
 metadata:
   name: ch-ingest-forwarder-pipeline
   namespace: {{ .Values.cluster.namespace }}
+  annotations:
+    # Ola 4: despues de Kafka (ola 3). Ver el comentario del Deployment.
+    argocd.argoproj.io/sync-wave: "4"
 data:
   pipeline.conf: |
     input {
@@ -60,6 +63,12 @@ metadata:
   name: ch-ingest-forwarder
   namespace: {{ .Values.cluster.namespace }}
   labels: { app: ch-ingest-forwarder }
+  annotations:
+    # Ola 4, despues de OpenBao (1) y Kafka (3). Necesita kafka-users-secret, que crea
+    # openbao-init. En la ola 0 (sin anotacion) bloqueaba el deployer en un alta nueva con
+    # chIngest activado desde el principio: el forwarder no arrancaba sin el Secret y el
+    # deployer no creaba OpenBao/Kafka hasta que el forwarder estuviera sano.
+    argocd.argoproj.io/sync-wave: "4"
 spec:
   replicas: 1
   selector:

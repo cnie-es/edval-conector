@@ -3,11 +3,11 @@ replicaCount: 1
 image:
   repository: "code.europa.eu:4567/simpl/simpl-open/development/data1/simpl-files"
   pullPolicy: IfNotPresent
-  tag: "1.4.0"
+  tag: "1.2.0"
 
 service:
   type: ClusterIP
-  port: 8080
+  port: 80
 
 resources:
   limits:
@@ -21,11 +21,10 @@ ingress:
   hostname: files.dev.simpl-europe.eu
   secretName: simpl-tls-files
   clusterIssuer: dev-prod
-  ingressClass: nginx
-
-documentPvc:
-  # name of the persistent volume claim where documents are saved by sdtooling service
-  name: nfs-storage-pvc
-  mount:
-    # mount path used for documents storage (must be configured also in nginx.conf as location alias prefix)
-    path: /home/nginx/data
+  # tls.secretName vacio = Let's Encrypt per-host (default, usa 'secretName'+clusterIssuer);
+  # con valor = usa ese Secret/SealedSecret TLS (p.ej. "vallelengua-tls") y NO emite con LE.
+  tls:
+    secretName: ""
+  ingressClass: apisix
+# Imagen publica de code.europa.eu: no hace falta pull secret.
+imagePullSecrets: []

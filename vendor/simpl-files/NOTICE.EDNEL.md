@@ -12,9 +12,9 @@ original copyright, licence and disclaimer notices are kept intact and unmodifie
 | | |
 |---|---|
 | Original work | simpl-files (Helm chart only, under `charts/`) |
-| Upstream repository | https://code.europa.eu/simpl/simpl-contributions/infratex/simpl-open/development/data1/simpl-files |
-| Baseline version | `v1.4.0` |
-| Baseline commit | `51230cf8bcc4f7571beb722163108ea9206786ad` (2026-07-31) |
+| Upstream repository | https://code.europa.eu/simpl/simpl-open/development/data1/simpl-files |
+| Baseline version | `v1.2.0` |
+| Baseline commit | `d024a7340dd2d9b422193e9ed211252f4991cabd` (2025-11-05) |
 
 Only the Helm chart (`charts/`) was taken from this upstream project; the application code,
 Dockerfile and the rest of the repository were not vendored here.
@@ -24,7 +24,7 @@ Dockerfile and the rest of the repository were not vendored here.
 | | |
 |---|---|
 | Modified by | EDNEL-RIOJA project team, for the EDVAL external connector |
-| Dates of modification | **2026-10-02** |
+| Dates of modification | **2026-10-02**, **2026-10-23** |
 
 The modifications are licensed under the **EUPL-1.2**, the same licence as the original work.
 
@@ -35,29 +35,29 @@ is kept alongside this file, in [UPSTREAM.diff](UPSTREAM.diff).
 
 ### Summary of the changes
 
-The published chart runs its container as a non-root user (`runAsUser: 101`, required by the
-upstream project's own Fortify/security hardening), but the chart's `deployment.yaml` gives the
-Pod no writable `/tmp` and exposes no values key to add one without editing the template directly:
-nginx needs to write its PID file there, and the container has no write permission on `/tmp` as
-that non-root user. With the public chart unmodified, the `simpl-files` Pod never becomes ready.
+On 2026-10-23 the baseline moved from `v1.4.0` back to `v1.2.0`, the version (and the same image,
+by digest) that the EDVAL internal connector runs. The `v1.4.0` changes of 2026-10-02 (writable
+`/tmp` for the non-root nginx) no longer apply: the `v1.2.0` image runs nginx on port 80 as its own
+user and serves the files bundled in the image.
 
-The fix adds an `emptyDir` volume named `tmp`, mounted at `/tmp`, in `deployment.yaml`. Confirmed
-against the current upstream `main` (verified at the same commit as the baseline above, which is
-still upstream `HEAD` for `charts/` at the time of writing): the bug is still present there, with
-no override hook added since.
-
-`Chart.yaml` and `values.yaml` differ only in resolving upstream's own CI build placeholders
-(`${PROJECT_RELEASE_VERSION}`, `${CI_REGISTRY_IMAGE}`) to the literal values of the vendored
-release (`1.4.0`, `code.europa.eu:4567/simpl/simpl-open/development/data1/simpl-files`) — this is
-not a functional change, it is what upstream's own CI would have substituted at release time.
+- `Chart.yaml` and `values.yaml` resolve upstream's CI build placeholders
+  (`${PROJECT_RELEASE_VERSION}`, `${CI_REGISTRY_IMAGE}`) to the literal values of the vendored release
+  (`1.2.0`, `code.europa.eu:4567/simpl/simpl-open/development/data1/simpl-files`).
+- `values.yaml`: `ingressClass: apisix` (the only ingress controller in the target clusters), an
+  optional `ingress.tls.secretName` to use an existing TLS Secret instead of cert-manager, and an
+  empty `imagePullSecrets` (the image is public).
+- `templates/deployment.yaml`: optional `imagePullSecrets`.
+- `templates/ingress.yaml`: `spec.ingressClassName` instead of the deprecated annotation, and the
+  cert-manager annotations only when no existing TLS Secret is given.
 
 ### Files modified
 
 | File | Date |
 |---|---|
-| `Chart.yaml` | 2026-10-02 |
-| `values.yaml` | 2026-10-02 |
-| `templates/deployment.yaml` | 2026-10-02 |
+| `Chart.yaml` | 2026-10-02, 2026-10-23 |
+| `values.yaml` | 2026-10-02, 2026-10-23 |
+| `templates/deployment.yaml` | 2026-10-02, 2026-10-23 |
+| `templates/ingress.yaml` | 2026-10-23 |
 
 No file was added or removed relative to the upstream `charts/` directory. No copyright, licence
 or disclaimer notice of the original work has been altered.

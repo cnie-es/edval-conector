@@ -34,6 +34,72 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   enviar nada. Requiere `edval-gitops#169`, que replica el Secret al namespace
   del participante. Va con `dataspace-config-files#8`.
 
+#### Fixed
+- `simpl-files` a la `1.2.0`, la misma que el conector interno (imagen de code.europa.eu con el mismo
+  digest que la que usa el interno). `vendor/simpl-files` pasa a ser el chart de SIMPL `v1.2.0` con los
+  ajustes del interno; el de `1.4.0` no sirve para esa imagen (puerto 80 y no 8080, otro usuario, ficheros
+  dentro de la imagen y no en un PVC). Además, `application.yaml` pasaba `image.registry`, que el chart
+  ignora; ahora es `image.repository`.
+- Pagos, igual que el conector interno:
+  - `paymentApproval.checkIntervalMs: 60000` en `contract-dataprovider` y `contract-consumer`. El chart
+    trae `3600000` por defecto, así que el externo tardaba hasta una hora en reaccionar a un pago confirmado;
+    el interno lo revisa cada minuto.
+  - `simpl-stubs` pasa a usar de verdad `imagesTags.stubs` (`2.1.0`). El chart de SIMPL lee
+    `deployment.image.artifact`/`tag`, y el dist le pasaba `image.registry`/`tag`, que ignoraba: corría su
+    imagen por defecto (`2.9.0`). La `2.1.0` de `code.europa.eu` es la misma imagen (mismo digest) que usa el
+    conector interno.
+- Activos de pago entre externos e internos: `deployment.paymentApproval.enabled: true` en
+  `contract-dataprovider` y `contract-consumer` (`PAYMENT_APPROVAL_ENABLED=true`). El chart de
+  `cnie-es/simpl-contract` lo deja a `false` por defecto, y con eso las negociaciones y transferencias de
+  ofertas de pago publicadas por el externo no avanzaban. Es un mecanismo del lado proveedor: retiene la
+  oferta de pago hasta que se confirma el pago.
+- EDC del conector externo a `cnie-es/simpl-edc` `1.0.25-edval` (chart e imagen). El chart fija
+  `-XX:MaxRAMPercentage=75` y trocea en partes de 64 MB las transferencias S3. Sin eso la JVM se quedaba
+  con el 25% de `limits.memory` (512 MB de heap con 2Gi) y metía el objeto entero en memoria, así que
+  las transferencias en las que el externo es proveedor morían con `OutOfMemoryError: Java heap space`,
+  y el OOM dejaba parado el gestor de negociaciones como proveedor (visto en extchparticipant).
+- Correo de alta del conector externo: el Job `send-credentials-email` buscaba los
+  usuarios fijos `admin.dataprovider` y `tecnico.dataprovider`, que no existen en el
+  realm externo (un único usuario, con el email como username). No encontraba a nadie,
+  dejaba un `WARN` y terminaba en verde sin mandar nada.
+  - Nuevo `keycloak.singleAdminUser` (`false` por defecto, `true` en
+    `values-external.yaml`): con él, el correo se manda a `keycloak.adminUser.email`.
+  - La búsqueda del usuario es exacta (`exact=true`).
+  - El Job falla si no existe ninguno de los usuarios, en vez de acabar en verde.
+  - No se reenvía el correo a quien ya completó el alta (sin `requiredActions`). Antes
+    llegaba de nuevo en cada sync de la Application.
+- Nombre del participante en el clearing house cuando el consumidor es el conector
+  externo: el `edc-connector-adapter-consumer` no recibía la URL de su
+  authentication-provider y mandaba los registros de transferencias y contratos sin
+  `consumerName`, `consumerParticipantId` ni `providerName`. En el clearing house se veía
+  el identificador en vez del nombre. Fallaban dos cosas: la URL solo se inyectaba en
+  participantes internos, y con la clave del chart vendorizado del conector
+  (`participantAuthApiBaseUrl`), no con la que lee el chart publicado
+  (`participant.authApi.baseUrl`). Ahora se inyecta siempre, con la clave buena.
+  Solo afecta a los registros nuevos.
+
+#### Changed
+- data-dashboard `v1.1.2-edval` y contract-consumption-be `1.20.0-edval-v2`, las mismas que el conector
+  interno (chart e imagen de cnie-es). El chart de data-dashboard no cambia.
+  - contract-consumption-be ya no pide el endpoint S3 en el formulario de descarga (vulnerabilidad del
+    informe) y deja de enviar el email en el consumo de API. El endpoint se fija en despliegue, con la clave
+    nueva `s3.endpointOverride`: vacío para AWS S3 (el valor por defecto) y la URL del proveedor para otro S3
+    compatible (MinIO, Ceph, Weka...). Va en el gitops de cada participante.
+  - Quitado el `targetRevision: 1.20.0-edval` duplicado del chart de contract-consumption-be: ya mandaba
+    `chartRevisions.contractConsumptionBe`.
+- data-dashboard a `v1.1.1-edval`, chart e imagen: `v1.1.0-edval` (currencies & policies) más
+  el `nginx.conf` corregido, para que recargar en Mis activos (`/assets`) no redirija a
+  `http://<host>:8080`. El chart no cambia respecto a `v1.0.4-edval`, así que los values son
+  los mismos.
+
+#### Removed
+- `embeddedCommon.enabled` y `wildcardTlsExternal`. Este repositorio solo despliega
+  participantes externos, así que el common embebido (OpenBao, Kafka y vault webhook) se
+  levanta siempre y el dominio de la authority siempre se deriva de `projectStage` o de
+  `authorityDomainSuffix`. Los ingress de OpenBao embebido, catalogue-ui, sd-ui y
+  data-dashboard solo piden certificado a cert-manager con `tls.perHost: true`, que es lo
+  que ya hacían en un externo. Si un deployer sigue pasando `embeddedCommon`, se ignora.
+
 ## [3.0.0] - 2026-02-25
 - Updated many components to implement Data Provider version 3.0.0.
 - SIMPL FE component separated into multiple FE components.

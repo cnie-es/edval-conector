@@ -1,0 +1,4 @@
+# Plantilla del pod (spec.template del Job). La rellena Agents/connector/charts/templates/application.yaml.
+podTemplate: {}
+# Margen para los reintentos del script (ATTR_RETRIES x ATTR_RETRY_SECONDS) mas el resto de pasos.
+activeDeadlineSeconds: 900
