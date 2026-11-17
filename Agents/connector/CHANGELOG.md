@@ -53,6 +53,17 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   del participante. Va con `dataspace-config-files#8`.
 
 #### Fixed
+- Correo de alta con Keycloak 26.8.1: el Job `send-credentials-email` añade `VERIFY_EMAIL` al
+  enlace cuando el email del usuario no está verificado. Keycloak 26.8 solo marca el email como
+  verificado si el enlace lleva esa acción (26.3.2 lo marcaba siempre), y el realm externo tiene
+  `verifyEmail: true` con el usuario en `emailVerified: false`, así que sin esto al participante le
+  llegaba un segundo correo de verificación en el primer login. Mismo arreglo que el del conector
+  interno (saas-agent-provisioner #71, detectado por QA en stage el 17/11/2026). No cambia la
+  configuración del realm.
+- Inventario de modificaciones de terceros: `vendor/keycloak/NOTICE.EDNEL.md` y
+  `vendor/postgres-cluster/NOTICE.EDNEL.md` recogen los cambios del Keycloak Operator, y se
+  regeneran sus `UPSTREAM.diff` contra el upstream. El de Keycloak tampoco incluía todavía el Job
+  del correo de alta (octubre).
 - `simpl-files` a la `1.2.0`, la misma que el conector interno (imagen de code.europa.eu con el mismo
   digest que la que usa el interno). `vendor/simpl-files` pasa a ser el chart de SIMPL `v1.2.0` con los
   ajustes del interno; el de `1.4.0` no sirve para esa imagen (puerto 80 y no 8080, otro usuario, ficheros
