@@ -208,7 +208,11 @@ redis_commander:
   valueFiles:
   - values.yaml
 # Keycloak 26.8.1 con el Keycloak Operator (CR participant-op), en sustitucion del
-# StatefulSet Bitnami 26.3.2 (CVEs). Con enabled=false (default) el render no cambia.
+# StatefulSet Bitnami 26.3.2 (CVEs). ACTIVADO POR DEFECTO desde v3.1.28 (enabled y cutover).
+#   enabled=false                -> Bitnami 26.3.2 (comportamiento anterior a v3.1.27).
+# OJO al actualizar un participante EXISTENTE (Bitnami): fijar antes cutover=false en sus
+# values y migrar la BD (documents/deployment-guide); con el defecto cutover=true el Keycloak
+# nuevo arrancaria sobre una BD vacia (realm importado de cero: sin usuarios ni passwords).
 #   enabled=true, cutover=false -> Operator + CR en paralelo sobre la BD
 #     <ns>_keycloak_op (la crea el operador de Postgres), sin exponerse.
 #   enabled=true, cutover=true  -> el Service `keycloak` apunta al CR y desaparece el
@@ -218,8 +222,8 @@ redis_commander:
 # OJO: pg_cluster.targetRevision tiene que apuntar a una version de este repo que ya
 # tenga keycloakOperatorDb (si no, el usuario <ns>_keycloak_op no se crea y el CR no arranca).
 keycloakOperator:
-  enabled: false
-  cutover: false
+  enabled: true
+  cutover: true
   name: participant-op
   image: quay.io/keycloak/keycloak:26.8.1
   instances: 1
