@@ -11,6 +11,13 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
 
 ### No publicado
 
+#### Changed
+- Keycloak 26.8.1 con el Keycloak Operator pasa a ser el **valor por defecto**
+  (`keycloakOperator.enabled=true`, `cutover=true`). Las altas nuevas lo usan sin tocar nada.
+  Un participante existente (Bitnami) tiene que fijar `cutover=false` antes de actualizar y
+  migrar la BD según `documents/deployment-guide`; si no, el Keycloak nuevo arrancaría con la
+  BD vacía. Bitnami 26.3.2 sigue disponible con `keycloakOperator.enabled=false`.
+
 #### Added
 - Keycloak 26.8.1 con el Keycloak Operator (`keycloakOperator.enabled` / `cutover`), en
   sustitución del StatefulSet Bitnami 26.3.2 (CVEs). Es el mismo CR `participant-op` que el

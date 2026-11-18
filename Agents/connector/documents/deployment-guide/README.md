@@ -287,10 +287,17 @@ done it records it in the ConfigMap `role-identity-attributes-state` and later r
 
 ### Keycloak 26.8.1 (Keycloak Operator)
 
-By default the participant Keycloak is the Bitnami 26.3.2 StatefulSet. Setting
-`keycloakOperator.enabled=true` replaces it with Keycloak 26.8.1 run by the official
-Keycloak Operator. The cluster prerequisites do not change: the chart itself deploys
-everything that is needed.
+Since v3.1.28 the participant Keycloak is, by default, Keycloak 26.8.1 run by the official
+Keycloak Operator (`keycloakOperator.enabled=true` and `keycloakOperator.cutover=true`). It
+replaces the Bitnami 26.3.2 StatefulSet of previous releases, which is still available with
+`keycloakOperator.enabled=false`. The cluster prerequisites do not change: the chart itself
+deploys everything that is needed.
+
+> **Upgrading an existing participant from v3.1.26 or earlier:** before switching to this
+> release, set `keycloakOperator.cutover=false` in the participant values and follow
+> *Existing participant* below. With the default `cutover=true` the new Keycloak would start
+> on an empty database: the realm would be imported from scratch, without the existing users,
+> passwords or OTP.
 
 - **Operator**: the `<namespace>-keycloak-operator` Argo CD Application installs the
   Operator in the participant namespace, watching only that namespace, together with its
@@ -312,12 +319,13 @@ Two switches control the change:
 
 | `keycloakOperator.enabled` | `keycloakOperator.cutover` | Result |
 |---|---|---|
-| `false` | - | Bitnami (default, no change). |
+| `false` | - | Bitnami 26.3.2 (behaviour of v3.1.26 and earlier). |
 | `true` | `false` | The Operator Keycloak starts in parallel on its own database, without traffic. |
-| `true` | `true` | The `keycloak` Service (same name and port) points to the Operator Keycloak and the Bitnami StatefulSet is no longer rendered. |
+| `true` | `true` | **Default.** The `keycloak` Service (same name and port) points to the Operator Keycloak and the Bitnami StatefulSet is no longer rendered. |
 
-**New participant:** set both switches to `true` from the start. The realm is imported into
-the empty database.
+**New participant:** nothing to do, the defaults apply. The realm is imported into the empty
+database. If another participant of the same cluster already installed the CRDs, set
+`keycloakOperator.embeddedOperator.installCRDs=false`.
 
 **Existing participant (keeping users, passwords and OTP):**
 
