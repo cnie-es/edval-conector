@@ -28,7 +28,7 @@ indica lo contrario abajo.
 | | |
 |---|---|
 | Modified by | EDNEL-RIOJA project team, for CNIE-ES |
-| Dates of modification | 2026-10-01 a 2026-10-02 |
+| Dates of modification | 2026-10-01 a 2026-10-02 y 2026-11-11 |
 
 Este chart no tiene publicacion propia en `cnie-es` (a diferencia de los 9 componentes EDVAL): se
 distribuye unicamente vendorizado dentro de este mismo repositorio, siguiendo lo acordado el
@@ -68,6 +68,13 @@ como esta hoy aqui).
   commit/fecha exacto en el que se anadieron (la unica fecha verificable para todo el fichero
   `templates/pg-cluster.yaml` es el rango 2026-10-01 a 2026-10-02 de arriba).
 
+- **BD del Keycloak del Operator** (2026-11-11): con `keycloakOperatorDb: true` (nueva clave en
+  `values.yaml`, `false` por defecto, y entonces el manifiesto no cambia) se crean el usuario y la
+  base de datos `<participante>_keycloak_op` en `consumerList` y `providerList`, para el Keycloak
+  26.8.1 del Keycloak Operator que sustituye al Bitnami 26.3.2. El usuario no es superuser: le
+  basta con ser dueño de su BD. El CR de Keycloak usa directamente el Secret de credenciales que
+  genera el operador de Postgres.
+
 ### Discrepancia encontrada (no es una modificacion intencional)
 
 `CHANGELOG.md` en este directorio se queda en la entrada `## 1.0.1 (2025-07-16)`, pero el
@@ -81,8 +88,8 @@ para que quien lo revise decida si hace falta actualizarlo.
 | Fichero (relativo a `charts/`) | Fecha |
 |---|---|
 | `Chart.yaml` | 2026-10-01 a 2026-10-02 |
-| `values.yaml` | 2026-10-01 a 2026-10-02 |
-| `templates/pg-cluster.yaml` | 2026-10-01 a 2026-10-02 |
+| `values.yaml` | 2026-10-01 a 2026-10-02; 2026-11-11 (`keycloakOperatorDb`) |
+| `templates/pg-cluster.yaml` | 2026-10-01 a 2026-10-02; 2026-11-11 (`_keycloak_op`) |
 
 ### Ficheros añadidos (no existen en el baseline upstream)
 
@@ -90,7 +97,7 @@ para que quien lo revise decida si hace falta actualizarlo.
 |---|---|
 | `README.md` (raiz de `vendor/postgres-cluster/`) | no verificable con certeza; el proyecto upstream no publica README.md en absoluto |
 | `NOTICE.EDNEL.md` (este fichero) | 2026-10-06 |
-| `UPSTREAM.diff` | 2026-10-06 |
+| `UPSTREAM.diff` | 2026-10-06 (regenerado el 2026-11-17) |
 
 El unico cambio a [LICENSE](LICENSE) es la adicion del texto oficial integro de la EUPL-1.2 debajo
 de la cabecera original (que antes solo enlazaba a el); no se ha quitado ni reescrito nada del

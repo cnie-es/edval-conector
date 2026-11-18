@@ -1382,3 +1382,93 @@ masterRealmPublicBlock:
     - /auth/realms/master/*
     - /auth/admin
     - /auth/admin/*
+
+## @section Keycloak Operator 26.8.1
+## Mismo interruptor que el conector interno (simpl-participant-connector external/keycloak)
+## y el authority. Con enabled=false (default) el render del chart es EL MISMO que antes.
+##   enabled=true, cutover=false -> el CR Keycloak arranca EN PARALELO sobre su BD
+##     <ns>_keycloak_op, sin exponerse (el Service `keycloak` sigue en Bitnami).
+##   enabled=true, cutover=true  -> sin StatefulSet Bitnami; el Service `keycloak`
+##     (mismo nombre y puerto) apunta a los pods del CR. tier1 /auth, users-roles, el
+##     realm-hardening y el send-credentials-email no cambian.
+## El Operator genera su StatefulSet y no admite vault-env como PID 1, asi que el CR lee
+## Secrets de Kubernetes. Quien los crea (secretsSource):
+##   job: operator-secrets-job.yaml, un Job con vault-env (conector externo, sin ESO).
+##        La BD usa el Secret que crea el operador de Postgres (db.secretName).
+##   eso: operator-externalsecrets.yaml, ExternalSecrets v1 (core on-prem).
+operator:
+  enabled: false
+  cutover: false
+  name: participant-op
+  image: quay.io/keycloak/keycloak:26.8.1
+  instances: 1
+  secretsSource: job
+  adminUsername: admin
+  # Hostnames (con /auth: contrato SIMPL, el tier1 reenvia /auth/** a este Service).
+  hostname: ""
+  adminHostname: ""
+  db:
+    host: ""
+    port: 5432
+    database: ""
+    # Secret con username/password de la BD. Vacio = keycloak-db-secret (el de ESO).
+    secretName: ""
+  # secretsSource=job: el Job que vuelca OpenBao a Secrets (valores `vault:` que resuelve
+  # vault-env por el webhook).
+  secretsJob:
+    image: docker.io/alpine/k8s:1.35.2
+    serviceAccountName: keycloak-op-secrets-sa
+    adminPassword: ""        # vault:<engine>/data/<ns>-keycloak#admin
+    configFilesToken: ""     # vault:... del token de config-files; vacio = sin token
+    smtpPassword: ""         # solo con realm.smtp.mode=literal
+    backoffLimit: 12
+    vault:
+      addr: ""
+      role: ""
+      tlsSecret: ""
+      envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
+  # secretsSource=eso: ClusterSecretStore y paths de OpenBao (KV v2).
+  secretStore: ""
+  secrets:
+    namespacePrefix: ""   # <ns>: paths <ns>-keycloak y <ns>-keycloak-op
+  configFilesTokenSecret:
+    path: ""
+    property: token
+  smtpPasswordSecret:
+    path: ""
+    property: smtp_password
+  realm:
+    exportUrl: ""          # URL completa del realm-export del participante
+    authenticatorUrl: ""   # URL del jar del SPI
+    themeUrl: ""           # URL del jar del theme
+    insecureTls: false
+    redirectUris: ""       # JSON de la lista de redirect URIs
+    smtpFromFallback: ""
+    # Si admin y tecnico comparten correo, deja un solo usuario (realm de dos usuarios).
+    # El realm del conector externo ya trae uno solo: alli va a false y no hace falta la
+    # imagen con perl.
+    mergeUsers: true
+    # none: smtpServer vacio | secret: Secret notification-smtp | literal: host/port/... +
+    # password en el Secret keycloak-op-smtp.
+    smtp:
+      mode: none
+      secretName: notification-smtp
+      host: ""
+      port: ""
+      starttls: ""
+      username: ""
+    adminUser:
+      firstName: ""
+      lastName: ""
+      email: ""
+    technicalUser:
+      firstName: ""
+      lastName: ""
+      email: ""
+  extraEnv: []
+  initImages:
+    curl: docker.io/curlimages/curl:8.18.0
+    envsubst: docker.io/library/nginx:1.27-alpine
+    perl: docker.io/bitnamilegacy/keycloak:26.3.2-debian-12-r2
+  resources: {}
+  nodeSelector: {}

@@ -12,6 +12,24 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
 ### No publicado
 
 #### Added
+- Keycloak 26.8.1 con el Keycloak Operator (`keycloakOperator.enabled` / `cutover`), en
+  sustitución del StatefulSet Bitnami 26.3.2 (CVEs). Es el mismo CR `participant-op` que el
+  conector interno (simpl-participant-connector #87), pero sin añadir prerrequisitos al
+  participante (ni ESO ni un Operator de plataforma):
+  - `vendor/keycloak-operator`: es el Operator 26.8.1 oficial, acotado al namespace del
+    participante (`JOSDK_WATCH_CURRENT`, Roles en vez de ClusterRoles compartidas). Lo
+    despliega la Application `<ns>-keycloak-operator` en la ola 1. Las CRDs llevan
+    `Prune=false,Delete=false` y se pueden apagar con `embeddedOperator.installCRDs`.
+  - BD `<ns>_keycloak_op`: la crea el operador de Postgres (`keycloakOperatorDb` en
+    `vendor/postgres-cluster`), y el CR usa directamente su Secret.
+  - Admin y token de config-files: un Job con vault-env (`operator-secrets-job.yaml`, hook
+    Sync) los vuelca desde el OpenBao del conector a Secrets.
+  - `vendor/keycloak`: guardas de cutover, CR y ExternalSecrets copiados del interno
+    (`secretsSource: eso|job`; aquí `job`), e imágenes públicas (quay.io).
+  - Con `enabled=false` (por defecto) el render es idéntico al anterior.
+  - Procedimiento (alta nueva y migración de un participante existente) en
+    `documents/deployment-guide`. Requiere que `pg_cluster.targetRevision` apunte a esta
+    versión.
 - `keycloak.adminUser` (`firstName`, `lastName`, `email`): la
   identidad del usuario admin del participante se puede fijar por participante
   desde el gitops (`participantOverrides.<ns>.adminUser`), en vez de la
@@ -35,6 +53,17 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
   del participante. Va con `dataspace-config-files#8`.
 
 #### Fixed
+- Correo de alta con Keycloak 26.8.1: el Job `send-credentials-email` añade `VERIFY_EMAIL` al
+  enlace cuando el email del usuario no está verificado. Keycloak 26.8 solo marca el email como
+  verificado si el enlace lleva esa acción (26.3.2 lo marcaba siempre), y el realm externo tiene
+  `verifyEmail: true` con el usuario en `emailVerified: false`, así que sin esto al participante le
+  llegaba un segundo correo de verificación en el primer login. Mismo arreglo que el del conector
+  interno (saas-agent-provisioner #71, detectado por QA en stage el 17/11/2026). No cambia la
+  configuración del realm.
+- Inventario de modificaciones de terceros: `vendor/keycloak/NOTICE.EDNEL.md` y
+  `vendor/postgres-cluster/NOTICE.EDNEL.md` recogen los cambios del Keycloak Operator, y se
+  regeneran sus `UPSTREAM.diff` contra el upstream. El de Keycloak tampoco incluía todavía el Job
+  del correo de alta (octubre).
 - `simpl-files` a la `1.2.0`, la misma que el conector interno (imagen de code.europa.eu con el mismo
   digest que la que usa el interno). `vendor/simpl-files` pasa a ser el chart de SIMPL `v1.2.0` con los
   ajustes del interno; el de `1.4.0` no sirve para esa imagen (puerto 80 y no 8080, otro usuario, ficheros

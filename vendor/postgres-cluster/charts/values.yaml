@@ -20,3 +20,7 @@ authorityList: {}
 consumerList: {}
 
 providerList: {}
+
+# true = usuario y BD <participante>_keycloak_op para el Keycloak del Operator
+# (keycloakOperator.enabled del umbrella). Con false el manifiesto no cambia.
+keycloakOperatorDb: false

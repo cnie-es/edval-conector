@@ -1,0 +1,272 @@
+{{- if .Values.operator.enabled }}
+{{- /*
+CR Keycloak 26.8.1 (k8s.keycloak.org/v2beta1) del participante, que sustituye al
+StatefulSet Bitnami. Mismo patron que el authority on-prem (governance-authority-simpl
+external/keycloak, operator.*) con los initContainers que hoy lleva el Bitnami del
+conector (Agents/connector/charts, bloque Keycloak):
+  - realm `participant` desde dataspace-config-files (export, SPI y theme por curl);
+  - envsubst de REDIRECT_URIS, admin/tecnico y SMTP (Secret notification-smtp en el core;
+    literal + ExternalSecret keycloak-op-smtp en un externo con smtp.enabled; vacio si no);
+  - merge-realm-users (admin y tecnico con el mismo correo -> un solo usuario);
+  - hostname con /auth (contrato SIMPL: el tier1-gateway reenvia /auth/** al Service
+    keycloak) y, si hay adminHostname, la consola en el host interno.
+Secrets (operator.secretsSource): `eso` = operator-externalsecrets.yaml (ESO v1, el core);
+`job` = operator-secrets-job.yaml (vault-env + kubectl, el conector externo, que no tiene
+ESO). El realm-hardening y el send-credentials-email siguen con vault-env y hablan con el
+Service keycloak.
+*/ -}}
+{{- $op := .Values.operator -}}
+{{- $r := $op.realm -}}
+{{- $k := ternary "-k " "" (default false $r.insecureTls) -}}
+{{- $tok := include "keycloak.operatorConfigToken" . -}}
+{{- $dbSecret := $op.db.secretName | default "keycloak-db-secret" -}}
+{{- $hdr := ternary "-H \"Authorization: token ${CONFIG_FILES_TOKEN}\" " "" (not (not $tok)) -}}
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: {{ $op.name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/component: keycloak-operator
+spec:
+  instances: {{ $op.instances }}
+  image: {{ $op.image | quote }}
+  startOptimized: false
+  hostname:
+    hostname: {{ required "operator.hostname" $op.hostname | quote }}
+    {{- with $op.adminHostname }}
+    admin: {{ . | quote }}
+    {{- end }}
+    strict: false
+  http:
+    httpEnabled: true
+  # Sin Ingress propio: lo expone el tier1-gateway (/auth) y, en adminRealmAccess=internal,
+  # el Ingress de admin del chart (que apunta al Service keycloak).
+  ingress:
+    enabled: false
+  proxy:
+    headers: xforwarded
+  db:
+    vendor: postgres
+    host: {{ required "operator.db.host" $op.db.host | quote }}
+    port: {{ $op.db.port }}
+    database: {{ required "operator.db.database" $op.db.database | quote }}
+    usernameSecret:
+      name: {{ $dbSecret }}
+      key: username
+    passwordSecret:
+      name: {{ $dbSecret }}
+      key: password
+    # targetServerType=primary: tras un failover de Patroni no quedarse en una replica
+    # read-only.
+    url: "jdbc:postgresql://{{ $op.db.host }}:{{ $op.db.port }}/{{ $op.db.database }}?targetServerType=primary"
+  bootstrapAdmin:
+    user:
+      secret: keycloak-admin-secret
+  {{- with $op.resources }}
+  resources: {{- toYaml . | nindent 4 }}
+  {{- end }}
+  unsupported:
+    podTemplate:
+      spec:
+        {{- with $op.nodeSelector }}
+        nodeSelector: {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumes:
+          - name: spi-volume
+            emptyDir: {}
+          - name: theme-volume
+            emptyDir: {}
+          - name: realm-config-volume
+            emptyDir: {}
+          - name: realm-volume
+            emptyDir: {}
+        initContainers:
+          - name: download-realm
+            image: {{ $op.initImages.curl | quote }}
+            command: ["/bin/sh", "-c"]
+            {{- if $tok }}
+            env:
+              - name: CONFIG_FILES_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: keycloak-op-config-token
+                    key: token
+            {{- end }}
+            args:
+              - |
+                curl -fsSL {{ $k }}{{ $hdr }}"{{ required "operator.realm.exportUrl" $r.exportUrl }}" \
+                  -o /realm-template/realm-template.json
+            volumeMounts:
+              - name: realm-config-volume
+                mountPath: /realm-template
+          - name: import-realm
+            image: {{ $op.initImages.envsubst | quote }}
+            command: ["/bin/sh", "-c"]
+            env:
+              - name: REDIRECT_URIS
+                value: {{ required "operator.realm.redirectUris" $r.redirectUris | quote }}
+              - name: REALM_NAME
+                value: realm
+              - name: SMTP_FROM_FALLBACK
+                value: {{ $r.smtpFromFallback | default "" | quote }}
+              {{- $smtp := $r.smtp | default dict }}
+              {{- if eq ($smtp.mode | default "none") "secret" }}
+              {{- range list "SMTP_HOST" "SMTP_PORT" "SMTP_STARTTLS" "SMTP_USERNAME" "SMTP_PASSWORD" }}
+              - name: {{ . }}
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ $smtp.secretName | default "notification-smtp" }}
+                    key: {{ . }}
+              {{- end }}
+              {{- else if eq $smtp.mode "literal" }}
+              - name: SMTP_HOST
+                value: {{ $smtp.host | default "" | quote }}
+              - name: SMTP_PORT
+                value: {{ $smtp.port | default "" | quote }}
+              - name: SMTP_STARTTLS
+                value: {{ $smtp.starttls | default "" | quote }}
+              - name: SMTP_USERNAME
+                value: {{ $smtp.username | default "" | quote }}
+              - name: SMTP_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: keycloak-op-smtp
+                    key: SMTP_PASSWORD
+              {{- else }}
+              {{- range list "SMTP_HOST" "SMTP_PORT" "SMTP_STARTTLS" "SMTP_USERNAME" "SMTP_PASSWORD" }}
+              - name: {{ . }}
+                value: ""
+              {{- end }}
+              {{- end }}
+              - name: ADMIN_DATAPROVIDER_FIRSTNAME
+                value: {{ $r.adminUser.firstName | quote }}
+              - name: ADMIN_DATAPROVIDER_LASTNAME
+                value: {{ $r.adminUser.lastName | quote }}
+              - name: ADMIN_DATAPROVIDER_EMAIL
+                value: {{ $r.adminUser.email | quote }}
+              - name: TECHNICAL_FIRSTNAME
+                value: {{ $r.technicalUser.firstName | quote }}
+              - name: TECHNICAL_LASTNAME
+                value: {{ $r.technicalUser.lastName | quote }}
+              - name: TECHNICAL_EMAIL
+                value: {{ $r.technicalUser.email | quote }}
+            args:
+              - |
+                envsubst '$REDIRECT_URIS $ADMIN_DATAPROVIDER_FIRSTNAME $ADMIN_DATAPROVIDER_LASTNAME $ADMIN_DATAPROVIDER_EMAIL $TECHNICAL_FIRSTNAME $TECHNICAL_LASTNAME $TECHNICAL_EMAIL $SMTP_HOST $SMTP_PORT $SMTP_STARTTLS $SMTP_USERNAME $SMTP_PASSWORD' \
+                  < /realm-template/realm-template.json > /config/${REALM_NAME}.json
+                # Keycloak 26.8 valida smtpServer.from y aborta el import si no es un email.
+                # Solo se toca si hay SMTP y el usuario no lleva "@".
+                if [ -n "${SMTP_USERNAME}" ]; then
+                  case "${SMTP_USERNAME}" in
+                    *@*) ;;
+                    *)
+                      if [ -n "${SMTP_FROM_FALLBACK}" ]; then
+                        sed -i "s|\"from\": \"${SMTP_USERNAME}\"|\"from\": \"${SMTP_FROM_FALLBACK}\"|" /config/${REALM_NAME}.json
+                        echo "smtpServer.from -> ${SMTP_FROM_FALLBACK}"
+                      fi
+                      ;;
+                  esac
+                fi
+            volumeMounts:
+              - name: realm-config-volume
+                mountPath: /realm-template
+              - name: realm-volume
+                mountPath: /config
+          {{- if $r.mergeUsers }}
+          # Igual que el Bitnami: si admin y tecnico tienen el mismo correo, el realm
+          # saldria con dos usuarios con el mismo email y el import fallaria. Queda solo
+          # el tecnico con los roles de ambos + T1UAR_M. Imagen con perl + JSON::PP.
+          - name: merge-realm-users
+            image: {{ $op.initImages.perl | quote }}
+            command: ["/bin/bash", "-c"]
+            env:
+              - name: REALM_FILE
+                value: /config/realm.json
+              - name: ADMIN_EMAIL
+                value: {{ $r.adminUser.email | quote }}
+              - name: TECHNICAL_EMAIL
+                value: {{ $r.technicalUser.email | quote }}
+            args:
+              - |
+                set -euo pipefail
+                perl -MJSON::PP -0777 -e '
+                  my ($f, $a, $t) = @ENV{qw(REALM_FILE ADMIN_EMAIL TECHNICAL_EMAIL)};
+                  if (lc($a) ne lc($t) || $a eq "") { print "admin y tecnico con correos distintos: realm sin cambios\n"; exit 0 }
+                  open(my $in, "<", $f) or die "no puedo leer $f: $!"; my $j = decode_json(do { local $/; <$in> }); close $in;
+                  my @mismo = grep { lc($_->{email} // "") eq lc($t) } @{ $j->{users} };
+                  if (@mismo < 2) { print "solo un usuario con $t: realm sin cambios\n"; exit 0 }
+                  my ($tec) = grep { grep { $_ eq "SD_PUBLISHER" } @{ $_->{realmRoles} // [] } } @mismo;
+                  $tec //= $mismo[-1];
+                  my %roles = map { $_ => 1 } map { @{ $_->{realmRoles} // [] } } @mismo;
+                  $roles{T1UAR_M} = 1;
+                  $tec->{realmRoles} = [ sort keys %roles ];
+                  $j->{users} = [ grep { $_ == $tec || lc($_->{email} // "") ne lc($t) } @{ $j->{users} } ];
+                  open(my $out, ">", "$f.tmp") or die "no puedo escribir $f.tmp: $!"; print $out JSON::PP->new->utf8->pretty->canonical->encode($j); close($out) or die "no puedo cerrar $f.tmp: $!";
+                  rename("$f.tmp", $f) or die "no puedo reemplazar $f: $!";
+                  print "admin y tecnico con el mismo correo ($t): un solo usuario con roles @{ $tec->{realmRoles} }\n";
+                '
+            volumeMounts:
+              - name: realm-volume
+                mountPath: /config
+          {{- end }}
+          - name: init-spi
+            image: {{ $op.initImages.curl | quote }}
+            command: ["/bin/sh", "-c"]
+            {{- if $tok }}
+            env:
+              - name: CONFIG_FILES_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: keycloak-op-config-token
+                    key: token
+            {{- end }}
+            args:
+              - |
+                curl -fsSL {{ $k }}{{ $hdr }}"{{ required "operator.realm.authenticatorUrl" $r.authenticatorUrl }}" \
+                  -o /custom-spi/keycloak-authenticator.jar
+            volumeMounts:
+              - name: spi-volume
+                mountPath: /custom-spi
+          - name: init-theme
+            image: {{ $op.initImages.curl | quote }}
+            command: ["/bin/sh", "-c"]
+            {{- if $tok }}
+            env:
+              - name: CONFIG_FILES_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: keycloak-op-config-token
+                    key: token
+            {{- end }}
+            args:
+              - |
+                curl -fsSL {{ $k }}{{ $hdr }}"{{ required "operator.realm.themeUrl" $r.themeUrl }}" \
+                  -o /custom-theme/keycloakify-starter.jar
+            volumeMounts:
+              - name: theme-volume
+                mountPath: /custom-theme
+        containers:
+          - name: keycloak
+            # --import-realm por args: el Operator no lo pone y sin el el realm no se
+            # importa en una BD vacia. IGNORE_EXISTING: no pisa un realm existente.
+            args:
+              - "-Djgroups.bind.address=$(POD_IP)"
+              - "--verbose"
+              - "start"
+              - "--import-realm"
+            volumeMounts:
+              - name: spi-volume
+                mountPath: /opt/keycloak/providers/keycloak-authenticator.jar
+                subPath: keycloak-authenticator.jar
+              - name: theme-volume
+                mountPath: /opt/keycloak/providers/keycloakify-starter.jar
+                subPath: keycloakify-starter.jar
+              - name: realm-volume
+                mountPath: /opt/keycloak/data/import/realm.json
+                subPath: realm.json
+            {{- with $op.extraEnv }}
+            env: {{- toYaml . | nindent 14 }}
+            {{- end }}
+{{- end }}

@@ -10,14 +10,14 @@ en el tag `v1.1.0` (commit corto `feaaa1593267`, 2025-12-18, segun la API de Git
 
 ---
 
-diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstream/charts vendor/postgres-cluster/charts
---- upstream/charts
-+++ vendor/postgres-cluster/charts
+diff -u -r upstream/charts/Chart.yaml vendor/postgres-cluster/charts/Chart.yaml
+--- upstream/charts/Chart.yaml
++++ vendor/postgres-cluster/charts/Chart.yaml
 @@ -1,2 +1,2 @@
  name: pg-cluster
 -version: ${PROJECT_RELEASE_VERSION}
 +version: 1.1.0
-diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstream/charts/templates/pg-cluster.yaml vendor/postgres-cluster/charts/templates/pg-cluster.yaml
+diff -u -r upstream/charts/templates/pg-cluster.yaml vendor/postgres-cluster/charts/templates/pg-cluster.yaml
 --- upstream/charts/templates/pg-cluster.yaml
 +++ vendor/postgres-cluster/charts/templates/pg-cluster.yaml
 @@ -4,8 +4,12 @@
@@ -33,7 +33,7 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
    numberOfInstances: {{ .Values.instances }}
    resources:
      {{- toYaml $.Values.resources | nindent 4 }}
-@@ -15,101 +19,137 @@
+@@ -15,101 +19,155 @@
      - superuser
      - createdb
      {{- range .Values.authorityList }}
@@ -43,39 +43,39 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
 +    - superuser
 +    - createdb
 +    {{ $db }}_keycloak:
-     - superuser
-     - createdb
--    {{ . }}_ejbca:
++    - superuser
++    - createdb
 +    {{ $db }}_ejbca:
-     - superuser
-     - createdb
--    {{ . }}_securityattributesprovider:
++    - superuser
++    - createdb
 +    {{ $db }}_securityattributesprovider:
      - superuser
      - createdb
--    {{ . }}_usersroles:
+-    {{ . }}_ejbca:
 +    {{ $db }}_usersroles:
      - superuser
      - createdb
--    {{ . }}_onboarding:
+-    {{ . }}_securityattributesprovider:
 +    {{ $db }}_onboarding:
      - superuser
      - createdb
--    {{ . }}_identityprovider:
+-    {{ . }}_usersroles:
 +    {{ $db }}_identityprovider:
      - superuser
      - createdb
--    {{ . }}_authenticationprovider:
+-    {{ . }}_onboarding:
 +    {{ $db }}_authenticationprovider:
      - superuser
      - createdb
--    {{ . }}_fcservice:
+-    {{ . }}_identityprovider:
 +    {{ $db }}_fcservice:
-+    - superuser
-+    - createdb
+     - superuser
+     - createdb
+-    {{ . }}_authenticationprovider:
 +    {{ $db }}_onlyoffice:
-+    - superuser
-+    - createdb
+     - superuser
+     - createdb
+-    {{ . }}_fcservice:
 +    {{ $db }}_gnoss_acid:
      - superuser
      - createdb
@@ -84,12 +84,18 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
 -    {{ . }}_keycloak:
 +    {{- $db := . | replace "-" "_" }}
 +    {{ $db }}_keycloak:
-+    - superuser
-+    - createdb
-+    {{ $db }}_usersroles:
      - superuser
      - createdb
 -    {{ . }}_usersroles:
++    {{- if $.Values.keycloakOperatorDb }}
++    # BD del Keycloak 26.8.1 del Operator (CR participant-op). Sin superuser: le basta con
++    # ser dueno de su BD. El Secret <ns>-keycloak-op.pg-cluster.credentials... que genera el
++    # operador lo usa directamente el CR (sin ESO ni OpenBao).
++    {{ $db }}_keycloak_op: []
++    {{- end }}
++    {{ $db }}_usersroles:
++    - superuser
++    - createdb
 +    {{ $db }}_authenticationprovider:
      - superuser
      - createdb
@@ -117,6 +123,12 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
 +    {{ $db }}_keycloak:
 +    - superuser
 +    - createdb
++    {{- if $.Values.keycloakOperatorDb }}
++    # BD del Keycloak 26.8.1 del Operator (CR participant-op). Sin superuser: le basta con
++    # ser dueno de su BD. El Secret <ns>-keycloak-op.pg-cluster.credentials... que genera el
++    # operador lo usa directamente el CR (sin ESO ni OpenBao).
++    {{ $db }}_keycloak_op: []
++    {{- end }}
 +    {{ $db }}_usersroles:
      - superuser
      - createdb
@@ -182,6 +194,9 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
 -    {{ . }}_contract: {{ . }}_contract
 +    {{- $db := . | replace "-" "_" }}
 +    {{ $db }}_keycloak: {{ $db }}_keycloak
++    {{- if $.Values.keycloakOperatorDb }}
++    {{ $db }}_keycloak_op: {{ $db }}_keycloak_op
++    {{- end }}
 +    {{ $db }}_usersroles: {{ $db }}_usersroles
 +    {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
 +    {{ $db }}_edc: {{ $db }}_edc
@@ -198,6 +213,9 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
 -    {{ . }}_dagster: {{ . }}_dagster
 +    {{- $db := . | replace "-" "_" }}
 +    {{ $db }}_keycloak: {{ $db }}_keycloak
++    {{- if $.Values.keycloakOperatorDb }}
++    {{ $db }}_keycloak_op: {{ $db }}_keycloak_op
++    {{- end }}
 +    {{ $db }}_usersroles: {{ $db }}_usersroles
 +    {{ $db }}_authenticationprovider: {{ $db }}_authenticationprovider
 +    {{ $db }}_edc: {{ $db }}_edc
@@ -209,15 +227,15 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
      postgres: postgres
    postgresql:
      version: "17"
--    parameters:
+-    parameters: 
 -      max_connections: "{{ .Values.maxConnections }}"
 \ No newline at end of file
 +    parameters:
 +      max_connections: "{{ .Values.maxConnections }}"
-diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstream/charts/values.yaml vendor/postgres-cluster/charts/values.yaml
+diff -u -r upstream/charts/values.yaml vendor/postgres-cluster/charts/values.yaml
 --- upstream/charts/values.yaml
 +++ vendor/postgres-cluster/charts/values.yaml
-@@ -0,0 +1,12 @@
+@@ -1,7 +1,12 @@
  name: pg-cluster
  volumeSize: 20Gi
 +storageClass: ""
@@ -230,10 +248,14 @@ diff -u -r --label upstream/charts --label vendor/postgres-cluster/charts upstre
  resources:
    requests:
      cpu: 10m
-@@ -14,4 +19,4 @@
-
+@@ -14,4 +19,8 @@
+ 
  consumerList: {}
-
+ 
 -providerList: {}
 \ No newline at end of file
 +providerList: {}
++
++# true = usuario y BD <participante>_keycloak_op para el Keycloak del Operator
++# (keycloakOperator.enabled del umbrella). Con false el manifiesto no cambia.
++keycloakOperatorDb: false

@@ -3,9 +3,11 @@
 #               contra vendor/keycloak/ en este repo (Chart.yaml, values.yaml, templates/).
 # No incluye charts/postgresql ni charts/common (dependencias OCI declaradas, no copias
 # vendorizadas modificadas por EDNEL-RIOJA).
+# Regenerado el 2026-11-17 con: diff -u -r upstream/ vendor/keycloak/ (Chart.yaml, values.yaml, templates/).
 
---- bitnami-keycloak-upstream/bitnami/keycloak/Chart.yaml	2026-10-06 13:46:22.570867877 +0200
-+++ wk-dist-docs/vendor/keycloak/Chart.yaml	2026-10-06 13:41:19.989234491 +0200
+
+--- bitnami/keycloak/Chart.yaml
++++ vendor/keycloak/Chart.yaml
 @@ -1,13 +1,10 @@
 -# Copyright Broadcom, Inc. All Rights Reserved.
 -# SPDX-License-Identifier: APACHE-2.0
@@ -29,9 +31,83 @@
 -version: 25.2.0
 \ No newline at end of file
 +version: 25.2.0
+Only in vendor/keycloak/templates: _operator.tpl
 
---- bitnami-keycloak-upstream/bitnami/keycloak/values.yaml	2026-10-06 13:46:22.571646581 +0200
-+++ wk-dist-docs/vendor/keycloak/values.yaml	2026-10-06 13:41:20.002196940 +0200
+--- bitnami/keycloak/templates/headless-service-ispn.yaml
++++ vendor/keycloak/templates/headless-service-ispn.yaml
+@@ -1,3 +1,4 @@
++{{- if not (include "keycloak.operatorCutover" .) }}
+ {{- /*
+ Copyright Broadcom, Inc. All Rights Reserved.
+ SPDX-License-Identifier: APACHE-2.0
+@@ -42,3 +43,4 @@
+     app.kubernetes.io/part-of: keycloak
+     app.kubernetes.io/app-version: {{ .Chart.AppVersion | quote }}
+ {{- end }}
++{{- end }}
+
+--- bitnami/keycloak/templates/headless-service.yaml
++++ vendor/keycloak/templates/headless-service.yaml
+@@ -1,3 +1,4 @@
++{{- if not (include "keycloak.operatorCutover" .) }}
+ {{- /*
+ Copyright Broadcom, Inc. All Rights Reserved.
+ SPDX-License-Identifier: APACHE-2.0
+@@ -39,3 +40,4 @@
+   selector: {{- include "common.labels.matchLabels" (dict "customLabels" $podLabels "context" .) | nindent 4 }}
+     app.kubernetes.io/component: keycloak
+     app.kubernetes.io/part-of: keycloak
++{{- end }}
+Only in vendor/keycloak/templates: master-realm-block-route.yaml
+Only in vendor/keycloak/templates: operator-externalsecrets.yaml
+Only in vendor/keycloak/templates: operator-keycloak.yaml
+Only in vendor/keycloak/templates: operator-secrets-job.yaml
+Only in vendor/keycloak/templates: realm-hardening-job.yaml
+Only in vendor/keycloak/templates: send-credentials-email-job.yaml
+
+--- bitnami/keycloak/templates/service.yaml
++++ vendor/keycloak/templates/service.yaml
+@@ -40,7 +40,8 @@
+     - name: http
+       port: {{ .Values.service.ports.http }}
+       protocol: TCP
+-      targetPort: http
++      {{- /* El pod del Operator expone HTTP en 8080 (numerico: no dependemos del nombre del puerto). */}}
++      targetPort: {{ if include "keycloak.operatorCutover" . }}8080{{ else }}http{{ end }}
+       {{- if and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePorts.http)) }}
+       nodePort: {{ .Values.service.nodePorts.http }}
+       {{- else if eq .Values.service.type "ClusterIP" }}
+@@ -62,6 +63,14 @@
+     {{- include "common.tplvalues.render" (dict "value" .Values.service.extraPorts "context" .) | nindent 4 }}
+     {{- end }}
+   {{- $podLabels := include "common.tplvalues.merge" (dict "values" (list .Values.podLabels .Values.commonLabels) "context" .) }}
++  {{- if include "keycloak.operatorCutover" . }}
++  # Cutover al Keycloak Operator: mismo Service (nombre y puerto), pods del CR.
++  selector:
++    app: keycloak
++    app.kubernetes.io/instance: {{ .Values.operator.name }}
++    app.kubernetes.io/managed-by: keycloak-operator
++  {{- else }}
+   selector: {{- include "common.labels.matchLabels" (dict "customLabels" $podLabels "context" .) | nindent 4 }}
+     app.kubernetes.io/component: keycloak
+     app.kubernetes.io/part-of: keycloak
++  {{- end }}
+
+--- bitnami/keycloak/templates/statefulset.yaml
++++ vendor/keycloak/templates/statefulset.yaml
+@@ -1,3 +1,4 @@
++{{- if not (include "keycloak.operatorCutover" .) }}
+ {{- /*
+ Copyright Broadcom, Inc. All Rights Reserved.
+ SPDX-License-Identifier: APACHE-2.0
+@@ -322,3 +323,4 @@
+         {{- if .Values.extraVolumes }}
+         {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumes "context" .) | nindent 8 }}
+         {{- end }}
++{{- end }}
+
+--- bitnami/keycloak/values.yaml
++++ vendor/keycloak/values.yaml
 @@ -91,9 +91,16 @@
  ## @param image.debug Enable Keycloak image debug mode
  ##
@@ -62,7 +138,7 @@
      digest: ""
      ## Specify a imagePullPolicy
      ## ref: https://kubernetes.io/docs/concepts/containers/images/#pre-pulled-images
-@@ -1292,4 +1299,50 @@
+@@ -1292,4 +1299,176 @@
    existingSecretUserKey: ""
    existingSecretPasswordKey: ""
    annotations: {}
@@ -98,6 +174,42 @@
 +    # Secret (clave ca.crt) con la CA del endpoint de OpenBao. Vacio = CA publica.
 +    tlsSecret: ""
 +    envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
++
++# Tras el import del realm, los usuarios admin.dataprovider/tecnico.dataprovider se crean sin
++# contrasena (requiredActions UPDATE_PASSWORD + CONFIGURE_TOTP, ver realm template). Sin este
++# job nadie les manda el enlace: Keycloak NO envia el correo solo por tener requiredActions, hay
++# que invocar explicitamente execute-actions-email (usa el smtpServer ya configurado en el import).
++sendCredentialsEmail:
++  enabled: false
++  image: quay.io/keycloak/keycloak:26.3.2
++  imagePullPolicy: IfNotPresent
++  backoffLimit: 5
++  ttlSecondsAfterFinished: 600
++  waitRetries: 60
++  waitSleepSeconds: 5
++  keycloakUrl: ""
++  adminUser: "admin"
++  adminPassword: ""
++  realm: ""
++  # Cliente publico (standardFlowEnabled) por el que el usuario completa el flujo de
++  # UPDATE_PASSWORD/CONFIGURE_TOTP en el navegador.
++  clientId: "frontend-cli"
++  redirectUri: ""
++  # Usernames fijos del realm template (no el email: el realm NO tiene
++  # registrationEmailAsUsername, pese a lo que se penso en un principio).
++  # El realm del conector EXTERNO si lo tiene y solo trae un usuario: ahi la lista
++  # es el email del admin, y la fija application.yaml con keycloak.singleAdminUser.
++  usernames:
++    - admin.dataprovider
++    - tecnico.dataprovider
++  requiredActions:
++    - UPDATE_PASSWORD
++    - CONFIGURE_TOTP
++  vault:
++    addr: ""
++    role: ""
++    tlsSecret: ""
++    envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
 +# Capa 1 del aislamiento del realm master: cierra /auth/admin/* y
 +# /auth/realms/master/* en el host PUBLICO del participante. Apagado por
 +# defecto -> los participantes externos no se ven afectados. Lo enciende el
@@ -115,6 +227,93 @@
 +    - /auth/realms/master/*
 +    - /auth/admin
 +    - /auth/admin/*
-
-Only in wk-dist-docs/vendor/keycloak/templates: master-realm-block-route.yaml
-Only in wk-dist-docs/vendor/keycloak/templates: realm-hardening-job.yaml
++
++## @section Keycloak Operator 26.8.1
++## Mismo interruptor que el conector interno (simpl-participant-connector external/keycloak)
++## y el authority. Con enabled=false (default) el render del chart es EL MISMO que antes.
++##   enabled=true, cutover=false -> el CR Keycloak arranca EN PARALELO sobre su BD
++##     <ns>_keycloak_op, sin exponerse (el Service `keycloak` sigue en Bitnami).
++##   enabled=true, cutover=true  -> sin StatefulSet Bitnami; el Service `keycloak`
++##     (mismo nombre y puerto) apunta a los pods del CR. tier1 /auth, users-roles, el
++##     realm-hardening y el send-credentials-email no cambian.
++## El Operator genera su StatefulSet y no admite vault-env como PID 1, asi que el CR lee
++## Secrets de Kubernetes. Quien los crea (secretsSource):
++##   job: operator-secrets-job.yaml, un Job con vault-env (conector externo, sin ESO).
++##        La BD usa el Secret que crea el operador de Postgres (db.secretName).
++##   eso: operator-externalsecrets.yaml, ExternalSecrets v1 (core on-prem).
++operator:
++  enabled: false
++  cutover: false
++  name: participant-op
++  image: quay.io/keycloak/keycloak:26.8.1
++  instances: 1
++  secretsSource: job
++  adminUsername: admin
++  # Hostnames (con /auth: contrato SIMPL, el tier1 reenvia /auth/** a este Service).
++  hostname: ""
++  adminHostname: ""
++  db:
++    host: ""
++    port: 5432
++    database: ""
++    # Secret con username/password de la BD. Vacio = keycloak-db-secret (el de ESO).
++    secretName: ""
++  # secretsSource=job: el Job que vuelca OpenBao a Secrets (valores `vault:` que resuelve
++  # vault-env por el webhook).
++  secretsJob:
++    image: docker.io/alpine/k8s:1.35.2
++    serviceAccountName: keycloak-op-secrets-sa
++    adminPassword: ""        # vault:<engine>/data/<ns>-keycloak#admin
++    configFilesToken: ""     # vault:... del token de config-files; vacio = sin token
++    smtpPassword: ""         # solo con realm.smtp.mode=literal
++    backoffLimit: 12
++    vault:
++      addr: ""
++      role: ""
++      tlsSecret: ""
++      envImage: "ghcr.io/bank-vaults/vault-env:v1.22.1"
++  # secretsSource=eso: ClusterSecretStore y paths de OpenBao (KV v2).
++  secretStore: ""
++  secrets:
++    namespacePrefix: ""   # <ns>: paths <ns>-keycloak y <ns>-keycloak-op
++  configFilesTokenSecret:
++    path: ""
++    property: token
++  smtpPasswordSecret:
++    path: ""
++    property: smtp_password
++  realm:
++    exportUrl: ""          # URL completa del realm-export del participante
++    authenticatorUrl: ""   # URL del jar del SPI
++    themeUrl: ""           # URL del jar del theme
++    insecureTls: false
++    redirectUris: ""       # JSON de la lista de redirect URIs
++    smtpFromFallback: ""
++    # Si admin y tecnico comparten correo, deja un solo usuario (realm de dos usuarios).
++    # El realm del conector externo ya trae uno solo: alli va a false y no hace falta la
++    # imagen con perl.
++    mergeUsers: true
++    # none: smtpServer vacio | secret: Secret notification-smtp | literal: host/port/... +
++    # password en el Secret keycloak-op-smtp.
++    smtp:
++      mode: none
++      secretName: notification-smtp
++      host: ""
++      port: ""
++      starttls: ""
++      username: ""
++    adminUser:
++      firstName: ""
++      lastName: ""
++      email: ""
++    technicalUser:
++      firstName: ""
++      lastName: ""
++      email: ""
++  extraEnv: []
++  initImages:
++    curl: docker.io/curlimages/curl:8.18.0
++    envsubst: docker.io/library/nginx:1.27-alpine
++    perl: docker.io/bitnamilegacy/keycloak:26.3.2-debian-12-r2
++  resources: {}
++  nodeSelector: {}

@@ -40,7 +40,8 @@ spec:
     - name: http
       port: {{ .Values.service.ports.http }}
       protocol: TCP
-      targetPort: http
+      {{- /* El pod del Operator expone HTTP en 8080 (numerico: no dependemos del nombre del puerto). */}}
+      targetPort: {{ if include "keycloak.operatorCutover" . }}8080{{ else }}http{{ end }}
       {{- if and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePorts.http)) }}
       nodePort: {{ .Values.service.nodePorts.http }}
       {{- else if eq .Values.service.type "ClusterIP" }}
@@ -62,6 +63,14 @@ spec:
     {{- include "common.tplvalues.render" (dict "value" .Values.service.extraPorts "context" .) | nindent 4 }}
     {{- end }}
   {{- $podLabels := include "common.tplvalues.merge" (dict "values" (list .Values.podLabels .Values.commonLabels) "context" .) }}
+  {{- if include "keycloak.operatorCutover" . }}
+  # Cutover al Keycloak Operator: mismo Service (nombre y puerto), pods del CR.
+  selector:
+    app: keycloak
+    app.kubernetes.io/instance: {{ .Values.operator.name }}
+    app.kubernetes.io/managed-by: keycloak-operator
+  {{- else }}
   selector: {{- include "common.labels.matchLabels" (dict "customLabels" $podLabels "context" .) | nindent 4 }}
     app.kubernetes.io/component: keycloak
     app.kubernetes.io/part-of: keycloak
+  {{- end }}

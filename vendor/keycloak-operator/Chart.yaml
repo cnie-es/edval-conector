@@ -1,0 +1,8 @@
+apiVersion: v2
+name: keycloak-operator
+description: >-
+  Keycloak Operator 26.8.1 acotado al namespace del participante (JOSDK_WATCH_CURRENT),
+  para el conector externo, que no tiene un Operator de plataforma.
+type: application
+version: 26.8.1
+appVersion: "26.8.1"

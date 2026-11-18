@@ -285,6 +285,59 @@ done it records it in the ConfigMap `role-identity-attributes-state` and later r
 - Change the mapping or disable it: `roleIdentityAttributes.mapping` / `roleIdentityAttributes.enabled`
   in the chart values (a new mapping is applied automatically).
 
+### Keycloak 26.8.1 (Keycloak Operator)
+
+By default the participant Keycloak is the Bitnami 26.3.2 StatefulSet. Setting
+`keycloakOperator.enabled=true` replaces it with Keycloak 26.8.1 run by the official
+Keycloak Operator. The cluster prerequisites do not change: the chart itself deploys
+everything that is needed.
+
+- **Operator**: the `<namespace>-keycloak-operator` Argo CD Application installs the
+  Operator in the participant namespace, watching only that namespace, together with its
+  four CRDs. If the cluster already has the CRDs (for example, another participant in the
+  same cluster), set `keycloakOperator.embeddedOperator.installCRDs=false`. If an Operator
+  already watches this namespace, set `keycloakOperator.embeddedOperator.enabled=false`.
+  The CRDs are never deleted by Argo CD, because deleting them would delete the Keycloak.
+- **Database**: the PostgreSQL operator creates the user and database
+  `<namespace>_keycloak_op` and its Secret
+  `<namespace>-keycloak-op.pg-cluster.credentials.postgresql.acid.zalan.do`.
+  `pg_cluster.targetRevision` must point to a release of this repository that includes
+  this change.
+- **Secrets**: the `keycloak-op-secrets` Job copies the admin password
+  (`<namespace>-keycloak#admin`) and, if `configFiles.tokenRef` is set, the config-files
+  token from OpenBao to the Secrets `keycloak-admin-secret` and
+  `keycloak-op-config-token`. It is an Argo CD Sync hook and runs on every sync.
+
+Two switches control the change:
+
+| `keycloakOperator.enabled` | `keycloakOperator.cutover` | Result |
+|---|---|---|
+| `false` | - | Bitnami (default, no change). |
+| `true` | `false` | The Operator Keycloak starts in parallel on its own database, without traffic. |
+| `true` | `true` | The `keycloak` Service (same name and port) points to the Operator Keycloak and the Bitnami StatefulSet is no longer rendered. |
+
+**New participant:** set both switches to `true` from the start. The realm is imported into
+the empty database.
+
+**Existing participant (keeping users, passwords and OTP):**
+
+1. Set `enabled=true` and keep `cutover=false`. Wait for `<namespace>_keycloak_op` and for
+   the `participant-op` Keycloak to be ready.
+2. Pause the auto-sync of the connector Application.
+3. Scale the Bitnami StatefulSet `keycloak` to 0.
+4. Copy the database `<namespace>_keycloak` to `<namespace>_keycloak_op` with
+   `pg_dump`/`pg_restore --no-owner --role=<namespace>_keycloak_op`, with the
+   `participant-op` Keycloak stopped (`spec.instances: 0`).
+5. Start it again. Keycloak 26.8.1 migrates the schema on startup.
+6. Set `cutover=true` and resume the auto-sync.
+7. The connector Application does not prune. Delete the orphan Bitnami resources by hand:
+   `kubectl -n <namespace> delete sts keycloak` and
+   `kubectl -n <namespace> delete svc keycloak-headless`.
+   Do **not** delete the `keycloak` Service.
+
+The old database `<namespace>_keycloak` is not modified. Until it is dropped, rolling back
+is `cutover=false` plus scaling the Bitnami StatefulSet back to 1.
+
 ### Tier2-proxy status
 
 Please keep in mind that until the agent is properly initialized, the tier2-proxy component will not work properly.
