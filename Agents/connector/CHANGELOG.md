@@ -11,6 +11,14 @@ son los tags `v3.1.x` del repo, que es lo que referencia el gitops.
 
 ### No publicado
 
+#### Fixed
+- La contraseña de `admin` del realm **master** de Keycloak ya no caduca: se quita
+  `forceExpiredPasswordChange(90)` de `realmHardening.masterPasswordPolicy`. Con la
+  caducidad, a los 90 dias el login por API de `admin` falla ("Account is not fully set
+  up") y dejan de funcionar los jobs y servicios que lo usan. El realm del participante
+  mantiene la caducidad de 90 dias para sus usuarios. Se aplica en el siguiente
+  despliegue (job realm-hardening).
+
 #### Changed
 - Keycloak 26.8.1 con el Keycloak Operator pasa a ser el **valor por defecto**
   (`keycloakOperator.enabled=true`, `cutover=true`). Las altas nuevas lo usan sin tocar nada.

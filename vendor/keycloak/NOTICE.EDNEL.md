@@ -117,7 +117,7 @@ could not be recovered — recorded here honestly rather than guessed.
 | `templates/operator-externalsecrets.yaml` | 2026-11-11 |
 | `templates/operator-secrets-job.yaml` | 2026-11-11 |
 | `NOTICE.EDNEL.md` (this file) | 2026-10-06 (updated 2026-11-17) |
-| `UPSTREAM.diff` | 2026-10-06 (regenerated 2026-11-17) |
+| `UPSTREAM.diff` | 2026-10-06 (regenerated 2026-11-17, updated 2026-11-19) |
 
 No file present in the upstream `keycloak/25.2.0` tag was removed or modified beyond what is
 listed above. The complete diff is in [`UPSTREAM.diff`](UPSTREAM.diff) in this same directory
