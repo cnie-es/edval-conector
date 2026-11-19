@@ -1321,7 +1321,12 @@ realmHardening:
   # login al publico, y ademas no se podria cerrar /realms/master/* en internet.
   masterFrontendUrl: ""
   ssoIdleTimeoutSeconds: 1800
-  masterPasswordPolicy: "length(16) and passwordHistory(20) and notUsername(undefined) and notEmail(undefined) and upperCase(1) and lowerCase(1) and digits(1) and maxLength(32) and forceExpiredPasswordChange(90)"
+  # master SIN forceExpiredPasswordChange: sus usuarios (admin) son cuentas de AUTOMATIZACION
+  # (jobs init-*, realm-hardening, users-roles, provisioner) que leen la contraseña de OpenBao.
+  # Con caducidad a 90 dias, el dia 91 el login por API devuelve "Account is not fully set up"
+  # (resolve_required_actions) y todo lo que use admin se cae; cambiarla a mano exige ademas
+  # actualizar OpenBao o se pierde el acceso. Aplica en cada sync (realm-hardening PostSync).
+  masterPasswordPolicy: "length(16) and passwordHistory(20) and notUsername(undefined) and notEmail(undefined) and upperCase(1) and lowerCase(1) and digits(1) and maxLength(32)"
   nonMasterPasswordPolicy: "length(16) and passwordHistory(20) and notUsername(undefined) and notEmail(undefined) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and maxLength(32) and forceExpiredPasswordChange(90)"
   vault:
     addr: ""
